@@ -412,109 +412,238 @@
     </script>
 
 
-    <%--@@@ Scrip Process Progressive--%>
+    <%-- ===================================================================
+         Status Bar (Process Flow) : stepper แบบใหม่
+         - done    : ขั้นตอนที่ผ่านแล้ว (เขียว + check)
+         - active  : ขั้นตอนปัจจุบัน (กดได้ ถ้ามีสิทธิ์) / Delay = สีแดง
+         - pending : ขั้นตอนที่ยังไม่ถึง (เทา)
+         class "step active" ยังถูกกำหนดจาก code-behind (Check_Process) เหมือนเดิม
+         =================================================================== --%>
     <script>
-        $(document).ready(function () {
-            $('.step').each(function (index, element) {
-                // element == this
-                $(element).not('.active').addClass('done');
-                $('.done').html('<i class="fa fa-check"></i>');
-                if ($(this).is('.active')) {
-                    return false;
+        function Set_ProcessStep() {
+            var $steps = $('#steps .step');
+            if ($steps.length === 0) return;
+
+            var status = $('input[id$="hd_status"]').first().val();
+            var $wrap = $('#steps').removeClass('is-close is-cancel');
+            var foundActive = false;
+
+            $steps.each(function () {
+                var $s = $(this).removeClass('done pending delay');
+                if ($s.is('.active')) {
+                    foundActive = true;
+                    if ($s.attr('data-desc') === 'Delay') $s.addClass('delay');
+                    return;
+                }
+                if (foundActive) {
+                    $s.addClass('pending');
+                } else {
+                    $s.addClass('done');
+                    // แทนเลขด้วยเครื่องหมาย check (ขั้นตอนที่ผ่านแล้ว)
+                    if ($s.find('.step-check').length === 0)
+                        $s.children('.btn-process').html('<i class="fa fa-check step-check"></i>');
                 }
             });
+
+            if (status === '7') $wrap.addClass('is-close');
+            if (status === '8') {
+                // Cancel : ไม่มีขั้นตอนปัจจุบัน → แสดงเป็นเทาทั้งหมด
+                $wrap.addClass('is-cancel');
+                $steps.removeClass('done').addClass('pending');
+            }
+        }
+
+        $(document).ready(function () {
+            Set_ProcessStep();
+            Sys.WebForms.PageRequestManager.getInstance().add_endRequest(Set_ProcessStep);
         });
     </script>
 
-    <%--@@@ Style Process Progressive--%>
     <style>
-        /*$blue: hsl(206,72%,68%);*/
-        /*$green: hsl(120,42%,54%);*/
-        /*$white: hsl(0, 0%, 100%);*/
-        /*$grey: hsl(226,10%,55%);*/
-        /*$disa: hsl(226,15%,83%);*/
-
-        body {
-            background-color: hsl(0, 0%, 90%);
-            /*font-family: 'Open Sans', sans-serif;*/
+        .steps-card {
+            background: #fff;
+            border: 1px solid #DADFD3;
+            border-radius: 10px;
+            padding: 14px 10px 10px;
+            margin: 10px 0 12px;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, .04);
+            position: relative;
         }
 
         #steps {
+            display: flex;
+            align-items: flex-start;
             width: 100%;
-            /*margin: 20px auto;*/
+            counter-reset: none;
         }
 
         .step {
-            width: 50px;
-            height: 50px;
-            background-color: hsl(0, 0%, 100%);
-            display: inline-block;
-            border: 3px solid;
-            border-color: transparent;
-            border-radius: 50%;
-            color: hsl(226,10%,50%);
-            font-weight: 600;
-            font-size: 28px;
+            --step-c: #B8C0B0;
+            position: relative;
+            flex: 1 1 0;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
             text-align: center;
-            line-height: 34px;
         }
 
-            .step:first-child {
-                line-height: 39px;
+            /* เส้นเชื่อมระหว่างขั้นตอน */
+            .step + .step::before {
+                content: '';
+                position: absolute;
+                top: 18px;
+                left: calc(-50% + 22px);
+                right: calc(50% + 22px);
+                height: 4px;
+                border-radius: 2px;
+                background: #E3E7DE;
+                z-index: 0;
             }
 
-            .step:nth-child(n+2) {
-                margin: 0 0 0 90px;
-                transform: translate(0, -4px);
+            .step.done + .step::before {
+                background: #4CAF50;
             }
 
-                .step:nth-child(n+2):before {
-                    width: 80px;
-                    height: 3px;
-                    display: block;
-                    background-color: hsl(0, 0%, 100%);
-                    transform: translate(-90px, 20px);
-                    content: '';
-                }
+            .step.done + .step.active::before {
+                background: linear-gradient(to right, #4CAF50, var(--step-c));
+            }
 
-            .step:after {
-                width: 154px;
-                display: block;
-                transform: translate(-55px, 3px);
-                /*color: hsl(226,10%,55%);*/
-                color: hsl(226,10%,50%);
+            /* วงกลม : LinkButton (btn-process) */
+            .step .btn-process {
+                position: relative;
+                z-index: 1;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                width: 40px;
+                height: 40px;
+                padding: 0;
+                border-radius: 50%;
+                border: 3px solid var(--step-c);
+                background: #fff;
+                color: var(--step-c);
+                font-size: 16px;
+                font-weight: 700;
+                text-decoration: none !important;
+                transition: transform .15s, box-shadow .15s;
+            }
+
+            /* ชื่อขั้นตอน */
+            .step::after {
                 content: attr(data-desc);
+                display: block;
+                margin-top: 7px;
+                padding: 0 4px;
+                font-size: 12px;
                 font-weight: 600;
-                font-size: 13px;
-                /*text-align: center;*/
+                line-height: 1.25;
+                color: #8A9383;
+                overflow-wrap: anywhere;
             }
-
-            .step:first-child:after {
-                transform: translate(-55px, -1px);
-            }
-
-            .step.active {
-                border-color: hsl(206,72%,68%);
-                color: hsl(206,72%,68%);
-            }
-
-                .step.active:before {
-                    background: linear-gradient(to right, hsl(120,42%,54%) 0%, hsl(206,72%,68%) 100%);
-                }
-
-                .step.active:after {
-                    color: hsl(206,72%,68%);
-                }
 
             .step.done {
-                background-color: hsl(120,42%,54%);
-                border-color: hsl(120,42%,54%);
-                color: hsl(0, 0%, 100%);
+                --step-c: #4CAF50;
             }
 
-                .step.done:before {
-                    background-color: hsl(120,42%,54%);
+                .step.done .btn-process {
+                    background: #4CAF50;
+                    color: #fff;
                 }
+
+                .step.done::after {
+                    color: #3D7F40;
+                }
+
+            .step.active {
+                --step-c: #2F80ED;
+            }
+
+                .step.active .btn-process {
+                    width: 46px;
+                    height: 46px;
+                    margin-top: -3px;
+                    font-size: 18px;
+                    box-shadow: 0 0 0 6px rgba(47, 128, 237, .15);
+                }
+
+                    .step.active .btn-process:not(.aspNetDisabled):hover {
+                        transform: scale(1.08);
+                        background: var(--step-c);
+                        color: #fff;
+                        cursor: pointer;
+                    }
+
+                .step.active::after {
+                    color: var(--step-c);
+                    font-size: 13px;
+                }
+
+                /* ป้าย "ขั้นตอนปัจจุบัน" */
+                .step.active .btn-process::after {
+                    content: 'NOW';
+                    position: absolute;
+                    top: -16px;
+                    left: 50%;
+                    transform: translateX(-50%);
+                    padding: 0 6px;
+                    border-radius: 8px;
+                    background: var(--step-c);
+                    color: #fff;
+                    font-size: 9px;
+                    font-weight: 700;
+                    letter-spacing: .5px;
+                    line-height: 14px;
+                }
+
+                .step.active.delay {
+                    --step-c: #D9534F;
+                }
+
+                    .step.active.delay .btn-process {
+                        box-shadow: 0 0 0 6px rgba(217, 83, 79, .18);
+                        animation: stepPulse 1.6s infinite;
+                    }
+
+        @keyframes stepPulse {
+            0%, 100% { box-shadow: 0 0 0 4px rgba(217, 83, 79, .18); }
+            50% { box-shadow: 0 0 0 9px rgba(217, 83, 79, .08); }
+        }
+
+        /* Close : ทุกขั้นตอนผ่านแล้ว */
+        #steps.is-close .step:last-child .btn-process {
+            box-shadow: 0 0 0 6px rgba(76, 175, 80, .18);
+        }
+
+        /* Cancel */
+        #steps.is-cancel {
+            opacity: .55;
+        }
+
+        .steps-card .cancel-tag {
+            display: none;
+        }
+
+        #steps.is-cancel + .cancel-tag {
+            display: block;
+            position: absolute;
+            top: 8px;
+            right: 12px;
+            padding: 2px 10px;
+            border-radius: 10px;
+            background: #6C757D;
+            color: #fff;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        @media (max-width: 900px) {
+            .step .btn-process { width: 32px; height: 32px; font-size: 13px; border-width: 2px; }
+            .step.active .btn-process { width: 38px; height: 38px; }
+            .step + .step::before { top: 14px; left: calc(-50% + 18px); right: calc(50% + 18px); height: 3px; }
+            .step::after { font-size: 10.5px; }
+            .step.active::after { font-size: 11px; }
+        }
     </style>
 
     <style>
@@ -1001,37 +1130,820 @@
         }
     </style>
 
+
+    <%-- ===================================================================
+         Layout ใหม่ (override style เดิม) : ยืดตามขนาดหน้าจอ, ไม่ fix ความสูง
+         ≥ 1400px : Info | Problem Rank | Picture  (3 คอลัมน์)
+         1000-1399 : Info | Rank + Picture (ซ้อน)
+         < 1000    : 1 คอลัมน์
+         =================================================================== --%>
     <style>
-        .btn-process {
-            font-size: large;
-            font-weight: bold;
-            color: hsl(206,72%,68%);
-            align-content: center;
-            border-radius: 50%;
-            width: 100%;
-            background-color: white;
-            padding-top: 0px;
-            height: 100%;
+        :root {
+            --c-primary: #5F6F52;
+            --c-primary-dark: #4E5C43;
+            --c-primary-soft: #EEF1E8;
+            --c-accent: #B99470;
+            --c-border: #DADFD3;
+            --c-line: #ECEFE8;
+            --c-text: #2F3A28;
+            --c-muted: #7A8473;
+            --c-bg: #F4F5F1;
+        }
+
+        body {
+            background: var(--c-bg) !important;
+            color: var(--c-text);
+            font-family: 'Segoe UI', Tahoma, 'Leelawadee UI', sans-serif;
+            font-size: 13px;
+        }
+
+        .theme-bg-color1 { background-color: var(--c-primary) !important; }
+        .theme-text-color1 { color: var(--c-primary) !important; }
+
+        /* modal header เดิมสีฟ้า → สีเดียวกับระบบ */
+        .modal-header[style*="337ab7"] { background-color: var(--c-primary) !important; }
+        .modal-content { border-radius: 8px; overflow: hidden; }
+
+        /* ---------- Header + Toolbar (ติดด้านบนตอน scroll) ---------- */
+        .pd-top {
+            position: sticky;
+            top: 0;
+            z-index: 50;
+            background: var(--c-bg);
+            box-shadow: 0 2px 6px rgba(0, 0, 0, .06);
+        }
+
+        .pd-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            height: 48px;
+            padding: 0 18px;
+            background: var(--c-primary);
+            color: #fff;
+        }
+
+            .pd-header .pd-title {
+                font-size: 18px;
+                font-weight: 700;
+                margin: 0;
+                color: #fff !important;
+            }
+
+            .pd-header .fa {
+                color: var(--c-accent);
+                font-size: 18px;
+            }
+
+        .pd-wrap {
+            padding: 0 18px 24px;
+        }
+
+        /* Toolbar : Back / History / Upload Picture / Drawing */
+        .grid-container.pd-toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 8px;
+            margin: 0 -18px 0;
+            padding: 8px 18px;
+            grid-template-columns: none;
+            grid-template-rows: none;
+        }
+
+            .grid-container.pd-toolbar > div {
+                width: auto;
+            }
+
+            .pd-toolbar a {
+                text-decoration: none !important;
+            }
+
+        .pm-btn,
+        .pd-toolbar .btn,
+        .pd-toolbar .btn-group > .btn {
+            display: inline-flex !important;
+            align-items: center;
+            gap: 6px;
+            width: auto !important;
+            height: 32px !important;
+            padding: 0 14px !important;
+            border-radius: 6px !important;
+            border: 1px solid var(--c-border) !important;
+            background: #fff !important;
+            color: var(--c-text) !important;
+            font-size: 13px !important;
+            font-weight: 600;
+            white-space: nowrap;
+            box-shadow: none !important;
+        }
+
+            .pm-btn:hover,
+            .pd-toolbar .btn:hover {
+                background: var(--c-primary-soft) !important;
+                border-color: var(--c-primary) !important;
+            }
+
+            .pm-btn.back {
+                background: var(--c-primary) !important;
+                border-color: var(--c-primary) !important;
+                color: #fff !important;
+            }
+
+                .pm-btn.back:hover {
+                    background: var(--c-primary-dark) !important;
+                }
+
+        .pd-toolbar .dropdown-menu > li > a {
+            padding: 7px 16px;
+        }
+
+        /* ---------- Card หลัก (Problem No) ---------- */
+        .panel.panel-primary {
+            border: 1px solid var(--c-border);
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, .04);
+            background: #fff;
+        }
+
+            .panel.panel-primary > .panel-heading {
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                padding: 10px 16px;
+                background: var(--c-primary-soft);
+                border-bottom: 1px solid var(--c-border);
+                color: var(--c-primary-dark);
+            }
+
+                .panel.panel-primary > .panel-heading span[id$="lb_problem"] {
+                    font-size: 18px !important;
+                    font-weight: 700;
+                }
+
+                .panel.panel-primary > .panel-heading a {
+                    color: #C0392B !important;
+                }
+
+        .section-title {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin: 0;
+            padding: 8px 12px;
+            font-size: 13px;
+            font-weight: 700;
+            color: var(--c-primary-dark);
+            font-family: inherit !important;
+        }
+
+        /* style เดิมกำหนด grid-template-rows เป็น % / 100% → พอ wrap แล้วช่องทับกัน
+           ให้ทุก grid สูงตามเนื้อหา */
+        .grid-container2, .grid-container3, .grid-container4, .grid-container6, .grid-container6_1,
+        .grid-container7, .grid-container7_1, .grid-container8_1, .grid-container9, .grid-container9_1,
+        .grid-container10, .grid-container11, .grid-container11_1, .grid-container12,
+        .grid-container12_Problem1, .grid-container13_1 {
+            grid-template-rows: none !important;
+            grid-auto-rows: auto;
+        }
+
+        .grid-container3 {
+            align-content: start;
+        }
+
+        .pd-wrap select.form-control,
+        .pd-wrap select:not(.h100) {
+            text-align: left !important;
+            text-align-last: left;
+        }
+
+        /* ---------- ส่วนบน : Info | Rank | Picture ---------- */
+        .grid-container2 {
+            grid-template-columns: minmax(0, 1fr) 220px minmax(240px, 22%);
+            grid-template-rows: auto;
+            border-bottom: 1px solid var(--c-line);
+        }
+
+            .grid-container2 > div {
+                min-width: 0;
+            }
+
+            /* col-lg-3 ของ bootstrap ใน grid ทำให้กว้างแค่ 25% ของช่อง */
+            .grid-container2 > .col-lg-3 {
+                width: auto !important;
+                float: none !important;
+                padding: 10px 12px !important;
+                border-left: 1px solid var(--c-line);
+            }
+
+        .grid-container3 {
+            grid-template-rows: auto;
+            row-gap: 0;
+        }
+
+            .grid-container3 > div {
+                margin: 0;
+            }
+
+        /* แถวข้อมูลแต่ละกลุ่ม */
+        .grid-container4,
+        .grid-container6,
+        .grid-container7,
+        .grid-container9 {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            align-items: end;
+            gap: 0 6px;
+            margin: 0 !important;
+            padding: 8px 12px;
+            border: 0 !important;
+            border-bottom: 1px solid var(--c-line) !important;
+        }
+
+        .grid-container4 {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 0 12px;
+            background: #FAFBF8;
+        }
+
+            .grid-container4 > div {
+                padding: 0;
+                margin: 0 !important;
+            }
+
+        .grid-container9_1,
+        .grid-container6_1,
+        .grid-container7_1,
+        .grid-container8_1 {
+            display: grid;
+            gap: 0 10px;
+            border: 0 !important;
+        }
+
+        .grid-container9_1 { grid-template-columns: 1.3fr .7fr 1.1fr .9fr 1.2fr; }
+        .grid-container6_1 { grid-template-columns: 1.2fr 1fr 1.1fr .7fr; }
+        .grid-container7_1 { grid-template-columns: 1.2fr 1fr 1fr; }
+        .grid-container8_1 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+            .grid-container9_1 > div,
+            .grid-container6_1 > div,
+            .grid-container7_1 > div,
+            .grid-container8_1 > div {
+                margin: 0 !important;
+                min-width: 0;
+            }
+
+            .grid-container9_1 .form-inline,
+            .grid-container6_1 .form-inline,
+            .grid-container7_1 .form-inline,
+            .grid-container8_1 .form-inline {
+                display: flex;
+                flex-direction: column;
+            }
+
+                .grid-container9_1 .form-inline br,
+                .grid-container6_1 .form-inline br,
+                .grid-container7_1 .form-inline br,
+                .grid-container8_1 .form-inline br {
+                    display: none;
+                }
+
+        /* Label หัวข้อ */
+        .topic-header,
+        .grid-container4 a[onclick],
+        .grid-container4 > div > a:first-child {
+            display: block;
+            min-height: 0 !important;
+            margin: 0 0 3px !important;
+            padding: 0 !important;
+            font-size: 11.5px !important;
+            font-weight: 600 !important;
+            color: var(--c-muted) !important;
+            text-transform: uppercase;
+            letter-spacing: .3px;
+            white-space: nowrap;
+        }
+
+        .grid-container4 > div {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            align-items: center;
+            gap: 3px 6px;
+        }
+
+            .grid-container4 > div > a:first-child {
+                grid-column: 1 / -1;
+            }
+
+            .grid-container4 > div > select,
+            .grid-container4 > div > .form-control {
+                grid-column: 1;
+                width: 100% !important;
+            }
+
+            .grid-container4 > div > a.btn {
+                grid-column: 2;
+                grid-row: 2;
+            }
+
+            .grid-container4 > div:first-child > select {
+                grid-column: 1 / -1;
+            }
+
+        /* Input / Select */
+        .form-control,
+        .grid-container4 select {
+            height: 32px !important;
+            border-radius: 6px !important;
+            border-color: var(--c-border) !important;
+            box-shadow: none !important;
+            font-size: 13px !important;
+        }
+
+            .form-control[disabled],
+            .form-control.disabled,
+            select[disabled] {
+                background-color: #F6F7F3 !important;
+                color: var(--c-text) !important;
+                opacity: 1 !important;
+                cursor: default;
+            }
+
+        .h40 {
+            height: 32px !important;
+        }
+
+        select.ProgStatus1,
+        select.ProgStatus2 {
+            padding: 0 8px;
+            font-weight: 600;
+            border: 0;
+        }
+
+        select.ProgStatus1[disabled] { background-color: #17A2B8 !important; color: #fff !important; }
+        select.ProgStatus2[disabled] { background-color: #E67E22 !important; color: #fff !important; }
+
+        .input-group-addon {
+            height: 32px !important;
+            border-radius: 0 6px 6px 0 !important;
+            border-color: var(--c-border) !important;
+            background: var(--c-primary-soft) !important;
+        }
+
+        .input-group .form-control:first-child {
+            border-radius: 6px 0 0 6px !important;
+        }
+
+        .input-group {
+            width: 100% !important;
+        }
+
+        /* ปุ่มแก้ไข (ฟันเฟือง) */
+        .btn.btn-info {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 30px;
+            height: 30px !important;
+            padding: 0 !important;
+            border-radius: 6px;
+            border: 1px solid var(--c-border);
+            background: #fff;
+            color: var(--c-primary-dark);
+        }
+
+            .btn.btn-info:hover {
+                background: var(--c-primary);
+                border-color: var(--c-primary);
+                color: #fff;
+            }
+
+        a.aspNetDisabled,
+        .btn.aspNetDisabled {
+            opacity: .35;
+            pointer-events: none;
+        }
+
+        /* วงกลม Status Bar ที่ disabled (ไม่มีสิทธิ์กด) ยังต้องแสดงสีเต็ม */
+        .step a.btn-process.aspNetDisabled {
+            opacity: 1;
+        }
+
+        /* Tool Detail button */
+        .grid-container9 > div:last-child {
+            margin: 0 !important;
+        }
+
+            .grid-container9 > div:last-child .btn {
+                display: inline-flex;
+                align-items: center;
+                gap: 6px;
+                height: 32px !important;
+                width: auto !important;
+                padding: 0 12px;
+                border-radius: 6px;
+                background: var(--c-primary);
+                border-color: var(--c-primary);
+            }
+
+                .grid-container9 > div:last-child .btn br {
+                    display: none;
+                }
+
+                .grid-container9 > div:last-child .btn lable {
+                    font-size: 13px !important;
+                }
+
+        /* ---------- Problem Rank ---------- */
+        .grid-container5 {
+            display: flex !important;
+            flex-direction: column;
+            gap: 10px;
+            padding: 12px;
+            border: 0 !important;
+            border-left: 1px solid var(--c-line) !important;
+            margin: 0 !important;
+        }
+
+        .rank-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-size: 11.5px;
+            font-weight: 600;
+            color: var(--c-muted);
+            text-transform: uppercase;
+            letter-spacing: .3px;
+        }
+
+        .rank-box {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 6px;
+            border: 1px solid var(--c-border);
+            border-radius: 10px;
+            background: #FAFBF8;
+        }
+
+            .rank-box select.h100 {
+                width: 110px !important;
+                height: 110px !important;
+                border: 0;
+                border-radius: 10px;
+                font-weight: 700;
+                text-align: center;
+                text-align-last: center;
+                -webkit-appearance: none;
+                -moz-appearance: none;
+                appearance: none;
+            }
+
+        .rank-legend {
+            margin: 0;
+            padding: 8px 10px;
+            list-style: none;
+            border-radius: 8px;
+            background: var(--c-primary-soft);
+            font-size: 11.5px;
+            line-height: 1.6;
+        }
+
+            .rank-legend b {
+                display: inline-block;
+                width: 16px;
+            }
+
+        /* ---------- Picture ---------- */
+        .grid-container2 > .col-lg-3 .btn {
+            height: 32px !important;
+            border-radius: 6px;
+            margin-bottom: 8px;
+        }
+
+        div[id$="divPicNG"],
+        div[id$="divPicOK"] {
+            margin: 0 !important;
+            max-height: 340px;
+            overflow: auto;
+        }
+
+            div[id$="divPicNG"] label,
+            div[id$="divPicOK"] label {
+                font-size: 11.5px;
+                font-weight: 600;
+                color: var(--c-muted);
+                text-transform: uppercase;
+            }
+
+            div[id$="divPicNG"] img,
+            div[id$="divPicOK"] img {
+                max-width: 100%;
+                border-radius: 6px;
+                border: 1px solid var(--c-border);
+            }
+
+        /* ---------- Problem / Action Detail ---------- */
+        .grid-container10 {
+            grid-template-columns: minmax(0, 1fr) minmax(260px, 26%);
+            grid-template-rows: auto;
+            border-bottom: 1px solid var(--c-line);
+        }
+
+        .grid-container11 {
+            grid-template-rows: auto auto;
+            border-right: 1px solid var(--c-line);
+        }
+
+        .grid-container11_1 {
+            grid-template-columns: auto minmax(0, 1fr) auto;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 12px;
+            border-bottom: 1px solid var(--c-line);
+        }
+
+            .grid-container11_1 > div:first-child {
+                border-left: 4px solid #FFAF00 !important;
+                padding-left: 8px !important;
+            }
+
+                .grid-container11_1 > div:first-child label {
+                    margin: 0;
+                    font-weight: 700;
+                    white-space: nowrap;
+                }
+
+            .grid-container11_1 input.h40 {
+                height: 38px !important;
+                font-size: 15px !important;
+                font-weight: 600;
+            }
+
+        .grid-container12 {
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        }
+
+        .grid-container12_Problem,
+        .grid-container12_Action {
+            display: flex !important;
+            flex-direction: column;
+            gap: 6px;
+            margin: 0 !important;
+            padding: 10px 12px;
+        }
+
+        .grid-container12_Problem {
+            border-right: 1px solid var(--c-line) !important;
+        }
+
+            .grid-container12_Problem > div.fa,
+            .grid-container12_Action > div.fa {
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                font-family: inherit !important;
+                font-weight: 700;
+                color: var(--c-primary-dark);
+            }
+
+                .grid-container12_Problem > div.fa::before,
+                .grid-container12_Action > div.fa::before {
+                    font-family: FontAwesome;
+                    margin-right: 6px;
+                    color: var(--c-accent);
+                }
+
+        /* Spec / Actual / Result / Detail : label + value */
+        .grid-container12_Problem1 {
+            grid-template-columns: 86px minmax(0, 1fr);
+            border: 1px solid var(--c-border);
+            border-radius: 6px;
+            overflow: hidden;
+        }
+
+            .grid-container12_Problem1 > div:first-child {
+                padding: 6px 8px;
+                border: 0 !important;
+                background: #F1F3EC !important;
+                color: var(--c-muted);
+                font-size: 12px;
+                text-align: left !important;
+            }
+
+            .grid-container12_Problem1 > div:last-child {
+                background: #fff !important;
+                padding: 2px 6px;
+            }
+
+            .grid-container12_Problem1 input,
+            .grid-container12_Problem1 textarea {
+                width: 100% !important;
+                border: 0 !important;
+                background: transparent !important;
+                font-weight: 600;
+                color: var(--c-text);
+            }
+
+            .grid-container12_Problem1 textarea {
+                min-height: 64px;
+                resize: vertical;
+                font-weight: 400;
+            }
+
+            /* แถบสีบอกประเภท */
+            .grid-container12_Problem1.kv-spec > div:first-child { box-shadow: inset 4px 0 #4CAF50; }
+            .grid-container12_Problem1.kv-actual > div:first-child { box-shadow: inset 4px 0 #E67E22; }
+            .grid-container12_Problem1.kv-result > div:first-child { box-shadow: inset 4px 0 #2F80ED; }
+            .grid-container12_Problem1.kv-detail > div:first-child { box-shadow: inset 4px 0 #B8C0B0; }
+
+        /* Problem Analyze */
+        .grid-container13 {
+            display: flex !important;
+            flex-direction: column;
+            gap: 8px;
+            margin: 0 !important;
+            padding: 10px 12px;
+        }
+
+            .grid-container13 > div:first-child {
+                font-weight: 700;
+                color: var(--c-primary-dark);
+            }
+
+        .grid-container13_1 {
+            grid-template-columns: 42% 58%;
+            align-items: center;
+        }
+
+            .grid-container13_1 label {
+                margin: 0;
+                padding-right: 6px;
+                font-size: 12px !important;
+                color: var(--c-muted);
+            }
+
+        /* ---------- Troubleshooting History ---------- */
+        .pd-history {
+            padding: 12px;
+        }
+
+            .pd-history > .fa {
+                display: flex !important;
+                align-items: center;
+                gap: 6px;
+                margin: 0 0 8px !important;
+                font-family: inherit !important;
+                font-size: 14px !important;
+                color: var(--c-primary-dark);
+            }
+
+                .pd-history > .fa::before {
+                    font-family: FontAwesome;
+                    color: var(--c-accent);
+                }
+
+            .pd-history > .row {
+                margin: 0 !important;
+                width: 100% !important;
+            }
+
+            .pd-history .table {
+                border: 0;
+            }
+
+                .pd-history .table > tbody > tr > td {
+                    border: 0;
+                    padding: 0;
+                }
+
+            .pd-history table[id$="gv_problemDetail"] {
+                width: 100% !important;
+                margin-bottom: 10px;
+                border: 1px solid var(--c-border);
+                border-radius: 8px;
+                border-collapse: separate;
+                overflow: hidden;
+            }
+
+                .pd-history table[id$="gv_problemDetail"] th {
+                    background: var(--c-primary) !important;
+                    color: #fff !important;
+                    font-weight: 600;
+                    border: 0 !important;
+                    padding: 8px !important;
+                }
+
+                .pd-history table[id$="gv_problemDetail"] td {
+                    border: 0 !important;
+                    border-bottom: 1px solid var(--c-line) !important;
+                    padding: 7px 8px !important;
+                    vertical-align: middle;
+                    background: #fff;
+                }
+
+                .pd-history table[id$="gv_problemDetail"] tr:nth-child(even) td {
+                    background: #FAFBF8 !important;
+                }
+
+            .pd-history textarea {
+                width: 100% !important;
+                min-height: 90px;
+                padding: 8px 10px;
+                border: 1px solid var(--c-border);
+                border-radius: 8px;
+                background: #FFFBEA !important;
+                font-size: 14px !important;
+            }
+
+        .pd-save {
+            display: flex;
+            justify-content: center;
+            margin: 6px 0 2px !important;
+        }
+
+            .pd-save .btn {
+                height: 38px !important;
+                padding: 0 28px !important;
+                border-radius: 8px;
+                border: 0;
+                background: var(--c-primary);
+                font-size: 15px !important;
+                font-weight: 600;
+            }
+
+                .pd-save .btn:hover {
+                    background: var(--c-primary-dark);
+                }
+
+        /* ---------- Responsive ---------- */
+        @media (max-width: 1399px) {
+            .grid-container2 {
+                grid-template-columns: minmax(0, 1fr) minmax(230px, 26%);
+            }
+
+                .grid-container2 > .col-lg-3 {
+                    grid-column: 2;
+                    border-top: 1px solid var(--c-line);
+                }
+
+            .grid-container5 {
+                grid-column: 2;
+                grid-row: 1;
+            }
+
+            .grid-container3 {
+                grid-row: 1 / span 2;
+            }
+
+            .grid-container9_1 { grid-template-columns: repeat(3, minmax(0, 1fr)); row-gap: 6px; }
+        }
+
+        @media (max-width: 999px) {
+            .grid-container2,
+            .grid-container10,
+            .grid-container12 {
+                grid-template-columns: minmax(0, 1fr);
+            }
+
+                .grid-container2 > .col-lg-3,
+                .grid-container5,
+                .grid-container3 {
+                    grid-column: 1;
+                    grid-row: auto;
+                    border-left: 0 !important;
+                }
+
+            .grid-container5 {
+                flex-direction: row !important;
+                flex-wrap: wrap;
+                align-items: center;
+            }
+
+            .grid-container4,
+            .grid-container6_1,
+            .grid-container7_1,
+            .grid-container8_1,
+            .grid-container9_1 {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+                row-gap: 6px;
+            }
+
+            .grid-container11,
+            .grid-container12_Problem {
+                border-right: 0 !important;
+            }
         }
     </style>
-
 </head>
 <body>
     <form id="form1" runat="server">
-        <div style="width: 100%;">
-            <div class=" container-fluid theme-bg-color1" style="height: 42px;">
-                <table style="width: 100% !important;">
-                    <tr style="vertical-align: middle">
-                        <td>
-                            <label style="font-size: 20px"><span class=" label-head theme-text-color2 glyphicon glyphicon-blackboard"></span></label>
-                            <asp:Label ID="lbl_header_jig" runat="server" CssClass="label-head theme-text-color2" Text="PM Problem Detail" Font-Size="20" Font-Bold="true"></asp:Label>
-                        </td>
-                    </tr>
-                </table>
-            </div>
+        <div class="pd-header">
+            <span class="fa fa-wrench"></span>
+            <asp:Label ID="lbl_header_jig" runat="server" CssClass="pd-title" Text="PM Problem Detail"></asp:Label>
         </div>
 
-        <br />
         <asp:ScriptManager ID="ScriptManager1" EnablePageMethods="true" runat="server"></asp:ScriptManager>
         <asp:UpdateProgress ID="UpdateProgress1" runat="server" AssociatedUpdatePanelID="UpdatePanel1">
             <ProgressTemplate>
@@ -1050,8 +1962,8 @@
         <asp:UpdatePanel ID="UpdatePanel1" runat="server">
             <ContentTemplate>
                 <asp:Panel ID="Panel1" runat="server">
-                    <div class=" container-fluid">
-                        <div class="container-fluid">
+                    <div class="pd-wrap">
+                        <div>
 
                             <%--PM Problem--%>
                             <asp:HiddenField ID="hd_pmProblem_name" runat="server" />
@@ -1060,17 +1972,17 @@
 
                             <asp:Label ID="lb_test_m" runat="server"></asp:Label>
                             <%--button link : Menu--%>
-                            <div class="grid-container">
+                            <div class="grid-container pd-toolbar pd-top">
                                 <%--Back Menu--%>
                                 <div>
                                     <asp:Label ID="Label1" runat="server" Text=""></asp:Label>
-                                    <asp:LinkButton ID="LinkButton1" runat="server" CssClass="btn btn-danger fixPo" OnClick="btn_back_Click" OnClientClick=""><span class="glyphicon glyphicon-arrow-left"></span>Back</asp:LinkButton>
+                                    <asp:LinkButton ID="LinkButton1" runat="server" CssClass="pm-btn back" OnClick="btn_back_Click" OnClientClick=""><span class="glyphicon glyphicon-arrow-left"></span>Back</asp:LinkButton>
                                 </div>
 
                                 <%--History Menu--%>
                                 <div>
                                     <a id="PeriodCheck_link" runat="server" href="#" target="_blank">
-                                        <div id="div_PeriodCheck_link" runat="server" class="btn  btn-danger" style="/*height: 90%; */ width: 90%; text-align: center">
+                                        <div id="div_PeriodCheck_link" runat="server" class="pm-btn">
                                             <lable><span class="glyphicon glyphicon-modal-window"></span>&nbsp;History</lable>
                                         </div>
                                     </a>
@@ -1090,7 +2002,7 @@
                                 </div>
                                
                                 <%-- PDF menu (dropdown) --%>
-                                <div class="btn-group" style="">
+                                <div class="btn-group">
                                   <button type="button" class="btn btn-default dropdown-toggle" 
                                       data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" style="width:90%;">
                                     Drawing <span class="caret"></span>
@@ -1117,7 +2029,7 @@
                             </div>
 
                             <%--Process Flow of Problem--%>
-                            <div class="grid-container1" style="align-items: flex-end;">
+                            <div class="steps-card">
                                 <div id="steps">
                                     <div class="step" data-desc="New Problem" id="NewProblem_Process" runat="server">
                                         <asp:LinkButton runat="server" ID="btn_NewProblem_Process"
@@ -1182,6 +2094,7 @@
                                         </asp:LinkButton>
                                     </div>
                                 </div>
+                                <span class="cancel-tag"><i class="fa fa-ban"></i> Cancelled</span>
                             </div>
 
                             <%--Header PM Problem No--%>
@@ -1463,7 +2376,7 @@
                                                 <%--Follow Up date--%>
                                                 <div class="form-inline">
                                                     <label title="วันที่ติดตามความคืบหน้าปัญหา" class="form-control-static topic-header">Follow Up Date :</label>
-                                                    <div class="input-group style="width:98%;"">
+                                                    <div class="input-group">
                                                         <asp:TextBox ID="txt_follow_up" runat="server"
                                                             Enabled="false"
                                                             CssClass="form-control disabled"
@@ -1492,7 +2405,7 @@
                                                 <%--Actual Finish--%>
                                                 <div class="form-inline">
                                                     <label title="วันที่แล้วเสร็จ" class="form-control-static topic-header">Actual Finish : </label>
-                                                    <div class='input-group style="width:98%;"'>
+                                                    <div class="input-group">
                                                         <asp:TextBox ID="txt_actualFinish" runat="server"
                                                             Enabled="false"
                                                             CssClass="form-control disabled"
@@ -1515,15 +2428,14 @@
                                     </div>
 
                                     <%--Problem Rank--%>
-                                    <div class="grid-container5" style="border-right: 1px solid; border-color: #aaa;">
-                                        <div class="ProblemRankStyle1" style="border-left: 1px solid; border-right: 1px solid; border-top: 1px solid; border-radius: 5px 5px 0px 0px; margin-left: 30px; margin-right: 30px;">
-                                            <a style="color: #656161; font-size: small">Problem Rank
-                                                 <asp:LinkButton runat="server" ID="btn_UpdateProblemRank" CssClass="btn btn-info" ToolTip="แก้ไขประเภทของปัญหา" OnClick=" btn_update_ProblemRank_Click">
-                                                     <span class="glyphicon glyphicon-cog"></span>
-                                                 </asp:LinkButton>
-                                            </a>
+                                    <div class="grid-container5">
+                                        <div class="rank-head">
+                                            <span>Problem Rank</span>
+                                            <asp:LinkButton runat="server" ID="btn_UpdateProblemRank" CssClass="btn btn-info" ToolTip="แก้ไข Problem Rank" OnClick=" btn_update_ProblemRank_Click">
+                                                <span class="glyphicon glyphicon-cog"></span>
+                                            </asp:LinkButton>
                                         </div>
-                                        <div style="border: 1px solid; text-align: -webkit-center; align-content: space-evenly; margin-left: 30px; margin-right: 30px;">
+                                        <div class="rank-box">
                                             <asp:DropDownList ID="ddl_priority" runat="server" CssClass="h100" Enabled="false" BackColor="#ff9999" Font-Size="58px" onChange="auto_planFinist(this)">
                                                 <asp:ListItem Value="">-</asp:ListItem>
                                                 <asp:ListItem Value="A">A</asp:ListItem>
@@ -1531,19 +2443,13 @@
                                                 <asp:ListItem Value="C">C</asp:ListItem>
                                             </asp:DropDownList>
                                             <asp:RequiredFieldValidator ID="RequiredFieldValidator6" runat="server" ControlToValidate="ddl_priority" ErrorMessage="please select rank." Display="Dynamic" ForeColor="Red" ValidationGroup="New_Problem"></asp:RequiredFieldValidator>
-
                                         </div>
-                                        <div></div>
                                         <%--Problem Rank Detail--%>
-                                        <div style="align-content: space-evenly; border: 1px solid; border-radius: 5px; border-color: #0072B5; margin-right: 5px; margin-bottom: 5px;">
-                                            <a style="padding-left: 10px; font-size: 14px; font-weight: 600;">Problem Rank [Detail]</a>
-                                            </br>
-                                            <a style="padding-left: 20px; font-size: 11px;">A : Calibration / Urgent action</a>
-                                            </br>
-                                            <a style="padding-left: 20px; font-size: 11px;">B : Action / Use lead time for action</a>
-                                            </br>
-                                            <a style="padding-left: 20px; font-size: 11px;">C : Accept use / Monitoring</a>
-                                        </div>
+                                        <ul class="rank-legend">
+                                            <li><b>A</b> Calibration / Urgent action</li>
+                                            <li><b>B</b> Action / Use lead time for action</li>
+                                            <li><b>C</b> Accept use / Monitoring</li>
+                                        </ul>
                                     </div>
 
                                     <%--Picture--%>
@@ -1614,32 +2520,26 @@
                                                     </asp:LinkButton>
                                                 </div>
                                                 <%--Spec Detail--%>
-                                                <div class="grid-container12_Problem1" style="">
-                                                    <div title="ค่ามาตรฐานสำหรับอ้างอิงการตรวจสอบ" style="text-align: end; background-color: #399918; border-left: 5px solid; border-color: #FFAF00">
-                                                        Spec : 
-                                                    </div>
-                                                    <div style="background-color: #B4E380;">
+                                                <div class="grid-container12_Problem1 kv-spec">
+                                                    <div title="ค่ามาตรฐานสำหรับอ้างอิงการตรวจสอบ">Spec :</div>
+                                                    <div>
                                                         <asp:TextBox ID="lb_spec" runat="server" Style="border: none; background-color: unset"></asp:TextBox>
                                                     </div>
                                                     <%--<asp:RequiredFieldValidator ID="RequiredFieldValidator7" runat="server" ControlToValidate="lb_spec" ErrorMessage="please input spec." Display="Dynamic" ForeColor="Red" ValidationGroup="New_Problem"></asp:RequiredFieldValidator>--%>
                                                 </div>
 
                                                 <%--Data Actual--%>
-                                                <div class="grid-container12_Problem1">
-                                                    <div title="ค่าที่ได้จริงจากการตรวจสอบ" style="text-align: end; background-color: #EB5B00; border-left: 5px solid; border-color: #FFAF00;">
-                                                        Actual : 
-                                                    </div>
-                                                    <div style="background-color: #f3953b">
+                                                <div class="grid-container12_Problem1 kv-actual">
+                                                    <div title="ค่าที่ได้จริงจากการตรวจสอบ">Actual :</div>
+                                                    <div>
                                                         <asp:TextBox ID="lb_actual" runat="server" Style="border: none; background-color: unset"></asp:TextBox>
                                                         <%--<asp:RequiredFieldValidator ID="RequiredFieldValidator8" runat="server" ControlToValidate="lb_actual" ErrorMessage="please input actual." Display="Dynamic" ForeColor="Red" ValidationGroup="New_Problem"></asp:RequiredFieldValidator>--%>
                                                     </div>
                                                 </div>
 
                                                 <%--Detail Problem เพิ่มเติม--%>
-                                                <div class="grid-container12_Problem1">
-                                                    <div title="รายละเอียดของปัญหาเพิ่มเติม" style="text-align: end; background-color: #e2d7d7; border-left: 5px solid; border-color: #FFAF00;">
-                                                        Detail :  
-                                                    </div>
+                                                <div class="grid-container12_Problem1 kv-detail">
+                                                    <div title="รายละเอียดของปัญหาเพิ่มเติม">Detail :</div>
                                                     <div>
                                                         <asp:TextBox ID="lb_detailProblem" runat="server"
                                                             TextMode="MultiLine"
@@ -1666,20 +2566,16 @@
                                                     </asp:LinkButton>
                                                 </div>
                                                 <%--Data Result--%>
-                                                <div class="grid-container12_Problem1">
-                                                    <div title="ค่าที่ได้หลังจากแก้ไขแล้ว" style="text-align: end; background-color: #EB5B00; border-left: 5px solid; border-color: #399918;">
-                                                        Result : 
-                                                    </div>
-                                                    <div style="background-color: #f3953b">
+                                                <div class="grid-container12_Problem1 kv-result">
+                                                    <div title="ค่าที่ได้หลังจากแก้ไขแล้ว">Result :</div>
+                                                    <div>
                                                         <asp:TextBox ID="lb_result_spec" runat="server" Style="border: none; background-color: unset"></asp:TextBox>
                                                     </div>
                                                 </div>
 
                                                 <%--Detail Problem เพิ่มเติม--%>
-                                                <div class="grid-container12_Problem1">
-                                                    <div title="รายละเอียดการแก้ไขปัญหาเพิ่มเติม" style="text-align: end; background-color: #e2d7d7; border-left: 5px solid; border-color: #399918;">
-                                                        Detail :  
-                                                    </div>
+                                                <div class="grid-container12_Problem1 kv-detail">
+                                                    <div title="รายละเอียดการแก้ไขปัญหาเพิ่มเติม">Detail :</div>
                                                     <div>
                                                         <asp:TextBox runat="server" ID="lb_result_detail"
                                                             TextMode="MultiLine"
@@ -1791,8 +2687,8 @@
 
 
                                 <%--Comment History PM Problem--%>
-                                <div title="ประวัติการแก้ไขปัญหา PM" class="fa fa-history"
-                                    style="margin-top: 10px; margin-left: 10px; font-size: large; font-weight: bold;">
+                                <div class="pd-history">
+                                <div title="ประวัติการแก้ไขปัญหา PM" class="fa fa-history">
                                     Troubleshooting History of PM Problem
                                 </div>
                                 <div class="row" style="margin-left: 10px; width: 98%;">
@@ -1805,7 +2701,7 @@
                                                     OnRowCancelingEdit="gv_problemDetail_RowCancelingEdit"
                                                     OnRowEditing="gv_problemDetail_RowEditing"
                                                     OnRowUpdating="gv_problemDetail_RowUpdating"
-                                                    OnRowDataBound="gv_problemDetail_RowDataBound" Width="80%"
+                                                    OnRowDataBound="gv_problemDetail_RowDataBound" Width="100%"
                                                     AutoGenerateColumns="false">
                                                     <HeaderStyle BackColor="#337ab7" ForeColor="White" CssClass="table-header" />
                                                     <AlternatingRowStyle BackColor="#d0e3f2" />
@@ -1848,15 +2744,16 @@
                                         <tr>
                                             <td>
                                                 <asp:Label ID="Error" runat="server" ForeColor="Red" Text="กรุณาอย่าใส่สัญญาลักษ์ single close (') ในข้อความ"></asp:Label>
-                                                <asp:TextBox placeholder="Detail : " ID="txt_detail" runat="server" TextMode="MultiLine" Height="100" Width="100%" Font-Size="Large" BackColor="#FCF5D8"></asp:TextBox>
+                                                <asp:TextBox placeholder="บันทึกความคืบหน้า / การแก้ไขปัญหา..." ID="txt_detail" runat="server" TextMode="MultiLine" Width="100%"></asp:TextBox>
                                                 <asp:RequiredFieldValidator ID="RequiredFieldValidator14" runat="server" ControlToValidate="txt_detail" Display="Dynamic" ForeColor="Red" ValidationGroup="submit"></asp:RequiredFieldValidator>
                                             </td>
                                         </tr>
                                     </table>
                                     <asp:Label ID="lb_test" runat="server" ForeColor="Red"></asp:Label>
                                 </div>
-                                <div class="row" style="text-align: center !important">
+                                <div class="row pd-save">
                                     <asp:LinkButton ID="btn_summit" runat="server" CssClass="btn btn-primary btn-lg" OnClick="btn_summit_Click" ValidationGroup="submit">Save&nbsp;<span class="glyphicon glyphicon-floppy-saved"></span></asp:LinkButton>
+                                </div>
                                 </div>
                             </div>
 

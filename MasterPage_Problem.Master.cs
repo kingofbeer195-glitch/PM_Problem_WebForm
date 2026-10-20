@@ -71,7 +71,7 @@ namespace jig_tool
             //A33.HRef = "jt_problem_eng4Check.aspx";
             //A34.HRef = "jt_problem_MgrCheck.aspx";
             A41.HRef = "jt_acknowledge_problem.aspx?emp_id=" + emp_id;
-            A35.HRef = "http://cptsvs552.canon-pt.co.th/Dashboard_system/DB_PM2_Status.aspx";
+            A35.HRef = "http://cptsvs552.canon-pt.co.th/Dashboard/pm-problem";
             A27.HRef = "jt_his_new_problem.aspx?status=9";
             A4.HRef = "jt_his_new_problem.aspx?status=0" ;
             A30.HRef = "jt_his_problem_follow_up.aspx?status=0" ;

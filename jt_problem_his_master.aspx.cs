@@ -75,18 +75,17 @@ namespace jig_tool
                 return;
             }
 
-            //ShowDebugSession();
-
             if (!IsPostBack)
             {
                 ViewState["Total_row"] = 0;
                 bind_row();
             }
 
-            if (gv1.Rows.Count > 0)
+            if (gv1.HeaderRow != null)
                 gv1.HeaderRow.TableSection = TableRowSection.TableHeader;
 
-            RegisterPostBackControl();
+            // หมายเหตุ : ไม่ใช้ RegisterPostBackControl แล้ว (ไม่มี DataTables)
+            // Filter / Pager ทำงานแบบ partial postback ใน UpdatePanel ได้เลย
         }
         public void Assign_Session(string emp_id)
         {
@@ -101,73 +100,263 @@ namespace jig_tool
             Session["admin"] = getUser.USER_ADMIN;
             //Label1.Text = "test";
         }
+        // =====================================================================
+        //  Status master (ใช้ร่วมกัน : Status Card / Pill ในตาราง)
+        // =====================================================================
+        private static readonly string[][] StatusList = new string[][]
+        {
+            new string[] { "9", "New Problem" },
+            new string[] { "0", "Acknowledge" },
+            new string[] { "1", "On plan" },
+            new string[] { "2", "Delay" },
+            new string[] { "3", "Send for check" },
+            new string[] { "4", "Tool Owner[J3] Check" },
+            new string[] { "5", "ENG4[J3] check" },
+            new string[] { "6", "ENG4[Mgr] Approve" },
+            new string[] { "7", "Close" },
+            new string[] { "8", "Cancel" }
+        };
+
+        protected static string StatusName(string id)
+        {
+            foreach (string[] s in StatusList)
+                if (s[0] == id) return s[1];
+            return id;
+        }
+
+        // =====================================================================
+        //  Paging (อ้างอิง PM_MasterList2 : เลือกจำนวนรายการ/หน้า + ปุ่มเลขหน้า)
+        //  ดึงข้อมูลเฉพาะหน้าที่แสดงจาก SQL (ROW_NUMBER) เหมือนเดิม
+        // =====================================================================
+        private int PageSize
+        {
+            get
+            {
+                int n;
+                return (int.TryParse(ddl_pageSize.SelectedValue, out n) && n > 0) ? n : 20;
+            }
+        }
+
+        private int CurrentPage
+        {
+            get { return ViewState["currentPage"] == null ? 1 : (int)ViewState["currentPage"]; }
+            set { ViewState["currentPage"] = value; }
+        }
+
+        private int IsFixFilter()
+        {
+            return Request.QueryString["tool_id"] != null ? 1 : 0;
+        }
+
+        /// <summary>ค้นหาใหม่ → กลับไปหน้า 1</summary>
         protected void bind_row()
         {
-            if (Request.QueryString["tool_id"] != null)
-            {
-                //  Bind_data(1);  
-                Set_totalRow(1);
-            }
-            else
-            {
-                //Bind_data(0);
-                Set_totalRow(0);
-
-            }
-            ViewState["showItem"] = 20;
-            ViewState["currentPage"] = 1;
-            ViewState["Total_Page"] = 0;
-            ViewState["status"] = "";
-            Innit_control_page(Convert.ToDouble(ViewState["Total_row"]));
-            Bind_data(0, 20);
-            li_first.Attributes.Add("class", "disabled");
-            li_back.Attributes.Add("class", "disabled");
-
+            CurrentPage = 1;
+            Load_data();
         }
-        private void RegisterPostBackControl()
+
+        /// <summary>โหลดข้อมูลหน้าปัจจุบัน + Pager + Record count + Status Card</summary>
+        protected void Load_data()
         {
-            ScriptManager.GetCurrent(this).RegisterPostBackControl(ddl_year);
-            //ScriptManager.GetCurrent(this).RegisterPostBackControl(ddl_month);
-            ScriptManager.GetCurrent(this).RegisterPostBackControl(ddl_shift);
-            ScriptManager.GetCurrent(this).RegisterPostBackControl(ddl_type);
-            ScriptManager.GetCurrent(this).RegisterPostBackControl(ddl_symbol);
-            ScriptManager.GetCurrent(this).RegisterPostBackControl(ddl_priority);
-            ScriptManager.GetCurrent(this).RegisterPostBackControl(ddl_status);
-            ScriptManager.GetCurrent(this).RegisterPostBackControl(ddl_action);
-            ScriptManager.GetCurrent(this).RegisterPostBackControl(ddl_model);
-            ScriptManager.GetCurrent(this).RegisterPostBackControl(ddl_resp);
-            ScriptManager.GetCurrent(this).RegisterPostBackControl(ddl_resp_name);
-            ScriptManager.GetCurrent(this).RegisterPostBackControl(ddl_tool_owner); 
-            ScriptManager.GetCurrent(this).RegisterPostBackControl(ddl_risk);
-            ScriptManager.GetCurrent(this).RegisterPostBackControl(ddl_touch);
-            ScriptManager.GetCurrent(this).RegisterPostBackControl(ddl_part_equi);
-            ScriptManager.GetCurrent(this).RegisterPostBackControl(ddl_Pro_type1);
-            ScriptManager.GetCurrent(this).RegisterPostBackControl(ddl_Pro_type2);
-            ScriptManager.GetCurrent(this).RegisterPostBackControl(ddl_Pro_type3);
-            //ScriptManager.GetCurrent(this).RegisterPostBackControl(ddl_Issue);
-            
-            
+            int isFixFil = IsFixFilter();
+
+            Set_totalRow(isFixFil);
+            int total = Convert.ToInt32(ViewState["Total_row"]);
+            int totalPage = (total == 0) ? 1 : (int)Math.Ceiling(total / (double)PageSize);
+            ViewState["Total_Page"] = totalPage;
+
+            if (CurrentPage > totalPage) CurrentPage = totalPage;
+            if (CurrentPage < 1) CurrentPage = 1;
+
+            int start = ((CurrentPage - 1) * PageSize) + 1;
+            int end = CurrentPage * PageSize;
+
+            Bind_data(start, end);
+            Build_pager(totalPage);
+
+            lblRecordCount.Text = (total == 0)
+                ? "ไม่พบข้อมูล"
+                : string.Format("Showing <b>{0:#,0}</b> – <b>{1:#,0}</b> of <b>{2:#,0}</b> entries", start, Math.Min(end, total), total);
+
+            Bind_statusCards(isFixFil);
+            Set_advCount();
         }
 
+        private void Build_pager(int totalPage)
+        {
+            int cur = CurrentPage;
+            int from = Math.Max(1, cur - 2);
+            int to = Math.Min(totalPage, cur + 2);
+
+            List<object> pages = new List<object>();
+            if (from > 1)
+            {
+                pages.Add(new { Page = 1, Current = false });
+                if (from > 2) pages.Add(new { Page = -1, Current = false }); // ...
+            }
+            for (int i = from; i <= to; i++)
+                pages.Add(new { Page = i, Current = (i == cur) });
+            if (to < totalPage)
+            {
+                if (to < totalPage - 1) pages.Add(new { Page = -1, Current = false }); // ...
+                pages.Add(new { Page = totalPage, Current = false });
+            }
+
+            rptPager.DataSource = pages;
+            rptPager.DataBind();
+
+            first.Enabled = back.Enabled = (cur > 1);
+            next.Enabled = last.Enabled = (cur < totalPage);
+        }
+
+        protected void Pager_Command(object sender, CommandEventArgs e)
+        {
+            int totalPage = ViewState["Total_Page"] == null ? 1 : (int)ViewState["Total_Page"];
+            switch (e.CommandArgument.ToString())
+            {
+                case "first": CurrentPage = 1; break;
+                case "prev": CurrentPage = CurrentPage - 1; break;
+                case "next": CurrentPage = CurrentPage + 1; break;
+                case "last": CurrentPage = totalPage; break;
+            }
+            Load_data();
+        }
+
+        protected void rptPager_ItemCommand(object source, RepeaterCommandEventArgs e)
+        {
+            int page;
+            if (e.CommandName == "page" && int.TryParse(e.CommandArgument.ToString(), out page))
+            {
+                CurrentPage = page;
+                Load_data();
+            }
+        }
+
+        protected void ddl_pageSize_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            bind_row();
+        }
+
+        // =====================================================================
+        //  Status Card : จำนวนตาม Filter ปัจจุบัน (ไม่รวม Filter Status)
+        //  กด Card → Filter Status นั้น, กดซ้ำ → ยกเลิก (All)
+        // =====================================================================
+        private void Bind_statusCards(int isFixFil)
+        {
+            string where = (isFixFil == 1 ? Get_where_fix() : Get_where());
+            string str = " select A.isOnplan, count(*) as cnt from PM_Tool_History A where A.PM_problem_id is not null "
+                       + where + Search_fuction(false) + " group by A.isOnplan ";
+            dc.QryDT(conn, str);
+
+            Dictionary<string, int> counts = new Dictionary<string, int>();
+            int all = 0;
+            foreach (DataRow r in dc.dt.Rows)
+            {
+                string k = r["isOnplan"].ToString();
+                int c = Convert.ToInt32(r["cnt"]);
+                counts[k] = (counts.ContainsKey(k) ? counts[k] : 0) + c;
+                all += c;
+            }
+
+            string sel = ddl_status.SelectedValue;
+            List<object> cards = new List<object>();
+            cards.Add(new { Key = "", Name = "All", Count = all, Css = "st-card st-all" + (sel == "" ? " active" : "") });
+            foreach (string[] s in StatusList)
+            {
+                int c = counts.ContainsKey(s[0]) ? counts[s[0]] : 0;
+                cards.Add(new
+                {
+                    Key = s[0],
+                    Name = s[1],
+                    Count = c,
+                    Css = "st-card st-" + s[0] + (sel == s[0] ? " active" : "") + (c == 0 ? " zero" : "")
+                });
+            }
+            rptStatus.DataSource = cards;
+            rptStatus.DataBind();
+        }
+
+        protected void rptStatus_ItemCommand(object source, RepeaterCommandEventArgs e)
+        {
+            string key = e.CommandArgument.ToString();
+            if (key != "" && ddl_status.SelectedValue == key)
+                key = ""; // กด Card เดิมซ้ำ = ยกเลิก filter
+
+            ddl_status.ClearSelection();
+            ListItem li = ddl_status.Items.FindByValue(key);
+            if (li == null)
+            {
+                li = new ListItem(StatusName(key), key);
+                ddl_status.Items.Add(li);
+            }
+            li.Selected = true;
+
+            bind_row();
+        }
+
+        // =====================================================================
+        //  Filter
+        // =====================================================================
         protected void btn_search_Click(object sender, EventArgs e)
         {
- 
-            ViewState["showItem"] = 20;
-            ViewState["Total_row"] = 0;
-            ViewState["currentPage"] = 1;
-            ViewState["Total_Page"] = 0;
-            ViewState["status"] = "";
             bind_row();
-            //Set_totalRow(0);
-            Innit_control_page(Convert.ToDouble(ViewState["Total_row"]));
-            Bind_data(0, 20);
-            li_first.Attributes.Add("class", "disabled");
-            li_back.Attributes.Add("class", "disabled");
-            li_next.Attributes.Remove("class");
-            li_last.Attributes.Remove("class");
-
         }
+
+        protected void btn_clear_Click(object sender, EventArgs e)
+        {
+            TextBox[] txts = { txt_problem, txt_tool_no, txt_no_of_tool, txt_problem1, txt_problem2,
+                               txt_follow_up, txt_follow_up2, txt_tss_main1, txt_tss_main2, txt_tss_sub1, txt_tss_sub2 };
+            foreach (TextBox t in txts) t.Text = "";
+
+            DropDownList[] ddls = { ddl_priority, ddl_resp, ddl_type, ddl_status, ddl_symbol, ddl_action, ddl_shift,
+                                    ddl_resp_name, ddl_Issue, ddl_tool_owner, ddl_model, ddl_Pro_type1, ddl_Pro_type2,
+                                    ddl_Pro_type3, ddl_part_equi, ddl_touch, ddl_risk };
+            foreach (DropDownList d in ddls) d.ClearSelection();
+
+            ddl_year.ClearSelection();
+            ListItem y = ddl_year.Items.FindByValue(DateTime.Now.Year.ToString());
+            if (y != null) y.Selected = true;
+
+            bind_row();
+        }
+
+        /// <summary>ทุก Filter ใช้ event เดียวกัน : ค้นหาใหม่และกลับไปหน้า 1</summary>
+        protected void Filter_Changed(object sender, EventArgs e)
+        {
+            bind_row();
+        }
+
+        /// <summary>แสดงจำนวน Filter อื่นๆ ที่ถูกเลือกอยู่ บนปุ่ม Filter</summary>
+        private void Set_advCount()
+        {
+            int n = 0;
+            DropDownList[] ddls = { ddl_type, ddl_status, ddl_symbol, ddl_action, ddl_shift, ddl_resp_name, ddl_Issue,
+                                    ddl_tool_owner, ddl_model, ddl_Pro_type1, ddl_Pro_type2, ddl_Pro_type3,
+                                    ddl_part_equi, ddl_touch, ddl_risk };
+            foreach (DropDownList d in ddls) if (d.SelectedValue != "") n++;
+
+            if (txt_problem1.Text.Trim() != "" || txt_problem2.Text.Trim() != "") n++;
+            if (txt_follow_up.Text.Trim() != "" || txt_follow_up2.Text.Trim() != "") n++;
+            if (txt_tss_main1.Text.Trim() != "" || txt_tss_main2.Text.Trim() != "") n++;
+            if (txt_tss_sub1.Text.Trim() != "" || txt_tss_sub2.Text.Trim() != "") n++;
+            if (txt_no_of_tool.Text.Trim() != "") n++;
+
+            lbl_advCount.Text = n.ToString();
+            lbl_advCount.Visible = n > 0;
+        }
+
+        /// <summary>กัน ' ใน text ที่ผู้ใช้พิมพ์ (SQL ต่อ string)</summary>
+        private static string Q(string s)
+        {
+            return (s ?? "").Trim().Replace("'", "''");
+        }
+
         protected string Search_fuction()
+        {
+            return Search_fuction(true);
+        }
+
+        protected string Search_fuction(bool includeStatus)
         {
             string search = "";
 
@@ -175,373 +364,220 @@ namespace jig_tool
             string month_id = Request.QueryString["month"];
             string group = Request.QueryString["group"];
 
-          
+            // ----- Filter หลัก -----
             if (txt_problem.Text.Trim() != "")
             {
-                search += " and A.PM_problem_name Like N'%" + txt_problem.Text.Trim() + "%'";
+                search += " and A.PM_problem_name Like N'%" + Q(txt_problem.Text) + "%'";
             }
-            if (month_id != null)
+            if (txt_tool_no.Text.Trim() != "")
             {
-                search += " and MONTH(A.check_date) = '" + month_id + "' ";
-            }
-            if (txt_problem1.Text != "" && txt_problem2.Text != "")
-            {
-                search += " and CONVERT(datetime, A.check_date,106) between  '" + txt_problem1.Text + "' and '" + txt_problem2.Text + "' ";
+                // Tool : ค้นได้หลาย column (Tool No / No of Tool / Model)
+                string t = Q(txt_tool_no.Text);
+                search += " and (A.tool_no Like N'%" + t + "%' or A.toolSub_Name Like N'%" + t + "%' or A.model_name Like N'%" + t + "%')";
             }
             if (ddl_year.SelectedValue != "")
             {
-                search += " and year(A.check_date) = '" + ddl_year.SelectedValue + "'  ";
+                search += " and year(A.check_date) = '" + Q(ddl_year.SelectedValue) + "'  ";
             }
-          
-            if (txt_follow_up.Text != "" || txt_follow_up2.Text != "")
-            {
-                search += " and A.Follow_up  between  '" + txt_follow_up.Text + "' and '"+ txt_follow_up2.Text + "' ";
-            }
-
-          
-
-            if (txt_tss_main1.Text != "" || txt_tss_main2.Text != "")
-            {
-                search += " and A.TSS_Main between  '"+txt_tss_main1.Text.Trim()+"' and '"+txt_tss_main2.Text.Trim()+"' ";
-            }
-
-            if (txt_tss_sub1.Text != "" || txt_tss_sub2.Text != "")
-            {
-                search += " and A.TSS_sub between  '"+txt_tss_sub1.Text.Trim()+"' and '"+txt_tss_sub2.Text.Trim()+"' ";
-            }
-
-            if(ddl_shift.SelectedValue != "")
-            {
-                search += " and A.shift = " + ddl_shift.SelectedValue + "";
-            }
-
-
-            if (ddl_type.SelectedValue != "")
-            {
-                search += " and A.typeProblem = '" + ddl_type.SelectedValue + "'";
-            }
-
-            if(ddl_symbol.SelectedValue != "")
-            {
-                search += " and A.pro_type1 = '" + ddl_symbol.SelectedValue + "' "; ;
-                //search += " and A.symbol = " + ddl_symbol.SelectedValue + "";
-            }
-
             if (ddl_priority.SelectedValue != "")
             {
-                search += " and A.priority = '" + ddl_priority.SelectedValue + "'";
-            }
-
-            if (status != null)
-            {
-                //  ddl_type.SelectedValue = type;
-                switch (status)
-                {
-                    case "3":
-                        search += " and A.isOnplan in(3,4,5,6) ";
-                        break;
-                    default:
-                        search += " and A.isOnplan = '" + status + "'";
-                        break;
-                }
-            }
-           
-            if (ddl_status.SelectedValue != "")
-            {
-                search += " and A.isOnplan = " + ddl_status.SelectedValue + "";
-            }
-            if (ddl_action.SelectedValue != "")
-            {
-                search += " and A.action_id = " + ddl_action.SelectedValue + "";
-            }
-
-            if (txt_follow_up.Text.Trim() != "")
-            {
-                search += " and A.Follow_up = '" + txt_follow_up.Text.Trim() + "'";
-            }
-
-            if(txt_tool_no.Text.Trim() != "")
-            {
-                search += " and A.tool_no Like N'%" + txt_tool_no.Text.Trim() + "%'";
-            }
-            if(txt_no_of_tool.Text.Trim() != "")
-            {
-                search += " and A.toolSub_Name Like N'%" + txt_no_of_tool.Text.Trim() + "%'";
-            }
-
-            if(ddl_model.SelectedValue != "")
-            {
-                search += " and A.model_id = " + ddl_model.SelectedValue + "";
+                search += " and A.priority = '" + Q(ddl_priority.SelectedValue) + "'";
             }
             if (group != null)
             {
-                search += " and A.rep_group = '" + group + "'";
+                search += " and A.rep_group = '" + Q(group) + "'";
             }
             if (ddl_resp.SelectedValue != "")
             {
-                search += " and A.rep_group = '" + ddl_resp.SelectedItem + "'";
+                search += " and A.rep_group = '" + Q(ddl_resp.SelectedItem.Text) + "'";
             }
 
-            if(ddl_resp_name.SelectedValue!= "")
+            // ----- Filter อื่นๆ -----
+            if (month_id != null)
             {
-                search += " and A.emp_id = '" + ddl_resp_name.SelectedValue + "'";
+                search += " and MONTH(A.check_date) = '" + Q(month_id) + "' ";
             }
-            if(ddl_tool_owner.SelectedValue != "")
+
+            string p1 = Q(txt_problem1.Text), p2 = Q(txt_problem2.Text);
+            // From / To ใส่อย่างใดอย่างหนึ่งก็ได้ (To รวมทั้งวัน)
+            if (p1 != "")
+                search += " and CONVERT(datetime, A.check_date,106) >= CONVERT(datetime, '" + p1 + "', 106) ";
+            if (p2 != "")
+                search += " and CONVERT(datetime, A.check_date,106) < DATEADD(day, 1, CONVERT(datetime, '" + p2 + "', 106)) ";
+
+            string f1 = Q(txt_follow_up.Text), f2 = Q(txt_follow_up2.Text);
+            if (f1 != "" && f2 != "")
+                search += " and A.Follow_up  between  '" + f1 + "' and '" + f2 + "' ";
+            else if (f1 != "" || f2 != "")
+                search += " and A.Follow_up = '" + (f1 != "" ? f1 : f2) + "'";
+
+            string m1 = Q(txt_tss_main1.Text), m2 = Q(txt_tss_main2.Text);
+            if (m1 != "" && m2 != "")
+                search += " and A.TSS_Main between  '" + m1 + "' and '" + m2 + "' ";
+            else if (m1 != "" || m2 != "")
+                search += " and A.TSS_Main = '" + (m1 != "" ? m1 : m2) + "' ";
+
+            string s1 = Q(txt_tss_sub1.Text), s2 = Q(txt_tss_sub2.Text);
+            if (s1 != "" && s2 != "")
+                search += " and A.TSS_sub between  '" + s1 + "' and '" + s2 + "' ";
+            else if (s1 != "" || s2 != "")
+                search += " and A.TSS_sub = '" + (s1 != "" ? s1 : s2) + "' ";
+
+            if (ddl_shift.SelectedValue != "")
             {
-                search += " and A.owner_group = '" + ddl_tool_owner.SelectedItem + "'";
+                search += " and A.shift = " + Q(ddl_shift.SelectedValue) + "";
+            }
+            if (ddl_type.SelectedValue != "")
+            {
+                search += " and A.typeProblem = '" + Q(ddl_type.SelectedValue) + "'";
+            }
+            if (ddl_symbol.SelectedValue != "")
+            {
+                search += " and A.pro_type1 = '" + Q(ddl_symbol.SelectedValue) + "' ";
+            }
+
+            if (includeStatus)
+            {
+                if (status != null)
+                {
+                    switch (status)
+                    {
+                        case "3":
+                            search += " and A.isOnplan in(3,4,5,6) ";
+                            break;
+                        default:
+                            search += " and A.isOnplan = '" + Q(status) + "'";
+                            break;
+                    }
+                }
+                if (ddl_status.SelectedValue != "")
+                {
+                    search += " and A.isOnplan = " + Q(ddl_status.SelectedValue) + "";
+                }
+            }
+            else if (status != null)
+            {
+                // status จาก URL เป็นเงื่อนไขคงที่ของหน้า → ใช้กับการนับ Status Card ด้วย
+                search += (status == "3") ? " and A.isOnplan in(3,4,5,6) " : " and A.isOnplan = '" + Q(status) + "'";
+            }
+
+            if (ddl_action.SelectedValue != "")
+            {
+                search += " and A.action_id = " + Q(ddl_action.SelectedValue) + "";
+            }
+            if (txt_no_of_tool.Text.Trim() != "")
+            {
+                search += " and A.toolSub_Name Like N'%" + Q(txt_no_of_tool.Text) + "%'";
+            }
+            if (ddl_model.SelectedValue != "")
+            {
+                search += " and A.model_id = " + Q(ddl_model.SelectedValue) + "";
+            }
+            if (ddl_resp_name.SelectedValue != "")
+            {
+                search += " and A.emp_id = '" + Q(ddl_resp_name.SelectedValue) + "'";
+            }
+            if (ddl_tool_owner.SelectedValue != "")
+            {
+                search += " and A.owner_group = '" + Q(ddl_tool_owner.SelectedItem.Text) + "'";
             }
             if (ddl_Pro_type1.SelectedValue != "")
             {
-                search += " and A.pro_type1 = '" + ddl_Pro_type1.SelectedValue +"' "; ;
+                search += " and A.pro_type1 = '" + Q(ddl_Pro_type1.SelectedValue) + "' ";
             }
             if (ddl_Pro_type2.SelectedValue != "")
             {
-                search += " and A.pro_type2 = '" + ddl_Pro_type2.SelectedValue + "' "; ;
+                search += " and A.pro_type2 = '" + Q(ddl_Pro_type2.SelectedValue) + "' ";
             }
             if (ddl_Pro_type3.SelectedValue != "")
             {
-                search += " and A.pro_type3 = '" + ddl_Pro_type3.SelectedValue + "' "; ;
+                search += " and A.pro_type3 = '" + Q(ddl_Pro_type3.SelectedValue) + "' ";
             }
             if (ddl_part_equi.SelectedValue != "")
             {
-                search += " and A.part_equi = '"+ ddl_part_equi .SelectedValue+ "' ";
+                search += " and A.part_equi = '" + Q(ddl_part_equi.SelectedValue) + "' ";
             }
             if (ddl_touch.SelectedValue != "")
             {
-                search += " and A.touch_status = '"+ ddl_touch.SelectedValue.Trim()+ "' ";
+                search += " and A.touch_status = '" + Q(ddl_touch.SelectedValue) + "' ";
             }
             if (ddl_risk.SelectedValue != "")
             {
-                search += " and A.risk_status = '"+ ddl_risk .SelectedValue.Trim()+ "' ";
+                search += " and A.risk_status = '" + Q(ddl_risk.SelectedValue) + "' ";
             }
             if (ddl_Issue.SelectedValue != "")
             {
-                search += " and A.check_by  = '" + ddl_Issue.SelectedValue.Trim()+ "' ";
+                search += " and A.check_by  = '" + Q(ddl_Issue.SelectedValue) + "' ";
             }
             return search;
-
         }
+
         protected string Get_where()
         {
             string where = " ";
-            
             return where;
         }
+
         protected string Get_where_fix()
         {
             string tool_id = Request.QueryString["tool_id"];
             string toolSub_id = Request.QueryString["toolSub_id"];
 
             string where = "";
-            if (tool_id != null && tool_id != "")
-                where += " and A.tool_id = " + tool_id;
-            if (toolSub_id != null && toolSub_id != "")
-                where += " and A.toolSub_id = " + toolSub_id;
+            int n;
+            if (int.TryParse(tool_id, out n))
+                where += " and A.tool_id = " + n;
+            if (int.TryParse(toolSub_id, out n))
+                where += " and A.toolSub_id = " + n;
             return where;
         }
-      
-        protected void Innit_control_page(double totalRow)
-        {
-            double result = Math.Ceiling(totalRow / Convert.ToInt32(ViewState["showItem"]));
-            int Page = Convert.ToInt32(result);
-            ViewState["Total_Page"] = Page;
 
-            switch (Page)
-            {
-                case 0:
-                case 1:
-                    li_first.Attributes.Add("class", "disabled");
-                    li_back.Attributes.Add("class", "disabled");
-                    li_next.Attributes.Add("class", "disabled");
-                    li_last.Attributes.Add("class", "disabled");
-                    break;
-                default:
-                    li_first.Attributes.Remove("class");
-                    li_back.Attributes.Remove("class");
-                    li_next.Attributes.Remove("class");
-                    li_last.Attributes.Remove("class");
-                    break;
-            }
-        }
         protected void Bind_data(int start, int end)
         {
-            int isFixFil = 0;
-            if (Request.QueryString["tool_id"] != null)
-            {
-                isFixFil = 1;
-            }
-            string str = Bind(isFixFil);
+            string str = Bind(IsFixFilter());
             str += "  AND MyRowNumber BETWEEN " + start + " AND " + end;
-           // test.Text = str ;
             dc.QryDT(conn, str);
             gv1.DataSource = dc.dt;
             gv1.DataBind();
 
-            if (gv1.Rows.Count > 0)
+            if (gv1.HeaderRow != null)
                 gv1.HeaderRow.TableSection = TableRowSection.TableHeader;
-
         }
+
         protected string Bind(int isFixFil)
         {
             string search = Search_fuction();
             string where = (isFixFil == 1 ? Get_where_fix() : Get_where());
             string str = "";
             str += "  SELECT * FROM (select ROW_NUMBER() OVER (ORDER BY PM_problem_id  desc) AS MyRowNumber, *  ";
-            str += "  from PM_Tool_History A where A.PM_problem_id is not null "+ where + search+" )  ";
-            str += "  main where PM_problem_id is not null  "; //and isOnplan != 2
+            str += "  from PM_Tool_History A where A.PM_problem_id is not null " + where + search + " )  ";
+            str += "  main where PM_problem_id is not null  ";
             return str;
         }
+
         protected void Set_totalRow(int isFixFil)
         {
-            string str = "";
             string search = Search_fuction();
             string where = (isFixFil == 1 ? Get_where_fix() : Get_where());
-            str += " select A.PM_problem_id  ";
-            str += " from PM_Tool_History A where A.PM_problem_id is not null " + where+ search;
-            str += " order by A.PM_problem_id desc ";
-            
+            string str = " select count(*) as cnt from PM_Tool_History A where A.PM_problem_id is not null " + where + search;
+
             dc.QryDT(conn, str);
-
-            if (dc.dt.Rows.Count > 0)
-                ViewState["Total_row"] = dc.dt.Rows.Count;
-           // test.Text = ViewState["Total_row"].ToString()+ "</br>";
-
-        }
-        protected void first_Click(object sender, EventArgs e)
-        {
-            try
-            {
-                int showItem = (int)ViewState["showItem"];
-                int currentPage = (int)ViewState["currentPage"];
-
-                if (currentPage == 1)
-                    return;
-                li_first.Attributes.Add("class", "disabled");
-                li_back.Attributes.Add("class", "disabled");
-                li_next.Attributes.Remove("class");
-                li_last.Attributes.Remove("class");
-                Bind_data(0, showItem);
-                ViewState["currentPage"] = 1;
-            }
-            catch (Exception ex)
-            {
-                test.Text = ex.Message;
-            }
-        }
-        protected void back_Click(object sender, EventArgs e)
-        {
-            try
-            {
-                int showItem = (int)ViewState["showItem"];
-                int currentPage = (int)ViewState["currentPage"];
-                int backPage = currentPage - 1;
-                int start = ((showItem * backPage) - showItem) + 1;
-                int end = (showItem * backPage);
-
-                if (currentPage < 2)
-                {
-                    return;
-                }
-                else if (currentPage == 2)
-                {
-                    li_first.Attributes.Add("class", "disabled");
-                    li_back.Attributes.Add("class", "disabled");
-                }
-                else
-                {
-                    li_first.Attributes.Remove("class");
-                    li_back.Attributes.Remove("class");
-                    li_next.Attributes.Remove("class");
-                    li_last.Attributes.Remove("class");
-                }
-                Bind_data(start, end);
-                ViewState["currentPage"] = backPage;
-
-            }
-            catch (Exception ex)
-            {
-                test.Text = ex.Message;
-            }
-        }
-        protected void next_Click(object sender, EventArgs e)
-        {
-            try
-            {
-                int showItem = (int)ViewState["showItem"];
-                int currentPage = (int)ViewState["currentPage"];
-                int nextPage = currentPage + 1;
-                int start = (showItem * currentPage) + 1;
-                int end = (showItem * nextPage);
-
-                int Total_Page = (int)ViewState["Total_Page"];
-
-                if (currentPage > (Total_Page - 1))
-                {
-                    return;
-                }
-                else if (currentPage == (Total_Page - 1))
-                {
-
-                    li_next.Attributes.Add("class", "disabled");
-                    li_last.Attributes.Add("class", "disabled");
-                }
-                else
-                {
-
-                    li_first.Attributes.Remove("class");
-                    li_back.Attributes.Remove("class");
-                    li_next.Attributes.Remove("class");
-                    li_last.Attributes.Remove("class");
-                }
-
-                Bind_data(start, end);
-                ViewState["currentPage"] = nextPage;
-
-            }
-            catch (Exception ex)
-            {
-                test.Text = ex.Message;
-            }
-        }
-        protected void last_Click(object sender, EventArgs e)
-        {
-            try
-            {
-                int showItem = (int)ViewState["showItem"];
-                int currentPage = (int)ViewState["currentPage"];
-                int Total_Page = (int)ViewState["Total_Page"];
-
-                if (currentPage == Total_Page)
-                    return;
-
-                int lastPage = Total_Page;
-                int beforeLastPage = lastPage - 1;
-
-                int start = (showItem * beforeLastPage) + 1;
-                int end = (showItem * lastPage);
-
-
-                li_first.Attributes.Remove("class");
-                li_back.Attributes.Remove("class");
-                li_next.Attributes.Add("class", "disabled");
-                li_last.Attributes.Add("class", "disabled");
-
-                Bind_data(start, end);
-                ViewState["currentPage"] = lastPage;
-
-            }
-            catch (Exception ex)
-            {
-                test.Text = ex.Message;
-            }
+            ViewState["Total_row"] = (dc.dt.Rows.Count > 0) ? Convert.ToInt32(dc.dt.Rows[0]["cnt"]) : 0;
         }
 
         protected void btn_detail_problem_Click(object sender, EventArgs e)
         {
-            int yaer = Int32.Parse(ddl_year.SelectedValue.ToString());
             try
             {
                 GridViewRow row = (sender as LinkButton).NamingContainer as GridViewRow;
+
+                // ปีของ Problem (จากข้อมูลในแถว) ใช้เลือกหน้า follow เก่า/ใหม่
+                // ถ้าไม่มี ใช้ปีที่เลือกใน Filter หรือปีปัจจุบัน (เดิม Parse ddl_year ตรงๆ → error เมื่อไม่เลือกปี)
+                int yaer;
+                HiddenField hd_prob_year = (HiddenField)row.FindControl("hd_prob_year");
+                if (!int.TryParse(hd_prob_year.Value, out yaer) && !int.TryParse(ddl_year.SelectedValue, out yaer))
+                    yaer = DateTime.Now.Year;
+
                 HiddenField hd_problem_id = (HiddenField)row.FindControl("hd_problem_id");
                 HiddenField hd_tool_id = (HiddenField)row.FindControl("hd_tool_id");
 
@@ -583,90 +619,105 @@ namespace jig_tool
             string[] var2 = var.Split(',');
             return var2[0];
         }
+        private static string FormatDate(string raw, string format)
+        {
+            DateTime d;
+            if (!string.IsNullOrEmpty(raw) && DateTime.TryParse(raw, out d))
+                return d.ToString(format, System.Globalization.CultureInfo.InvariantCulture);
+            return raw;
+        }
+
         protected void gv1_RowDataBound(object sender, GridViewRowEventArgs e)
         {
-            if (e.Row.RowType == DataControlRowType.DataRow)
+            if (e.Row.RowType != DataControlRowType.DataRow)
+                return;
+
+            // ----- Symbol -----
+            HiddenField hd_symbol = e.Row.FindControl("hd_symbol") as HiddenField;
+            Label lb_symbol = e.Row.FindControl("lb_symbol") as Label;
+            if (hd_symbol.Value == "")
+                lb_symbol.Visible = false;
+            else
+                lb_symbol.CssClass = "chip symbol_" + hd_symbol.Value;
+
+            // ----- Priority -----
+            Label lb_priority = e.Row.FindControl("lb_priority") as Label;
+            switch (lb_priority.Text)
             {
-                Label symbol = e.Row.FindControl("lb_symbol") as Label;
-                if (symbol.Text == "")
-                {
-                    symbol.Visible = false;
-                }
-
-                Label lb_priority = e.Row.FindControl("lb_priority") as Label;
-                switch (lb_priority.Text)
-                {
-                    case "A": lb_priority.CssClass = " btn prio_A"; break;
-                    case "B": lb_priority.CssClass = " btn prio_B"; break;
-                    case "C": lb_priority.CssClass = "btn prio_C"; break;
-                    default: break;
-                }
-
-                Label lb_proType2 = e.Row.FindControl("lb_proType2") as Label;
-                if (lb_proType2.Text != "")
-                {
-                    lb_proType2.CssClass = "btn status3";
-                }
-
-                Label lb_proType3 = e.Row.FindControl("lb_proType3") as Label;
-                if (lb_proType3.Text != "")
-                {
-                    lb_proType3.CssClass = "btn status3";
-                }
-
-                Label lb_proType4 = e.Row.FindControl("lb_proType4") as Label;
-                if (lb_proType4.Text != "")
-                {
-                    lb_proType4.CssClass = "btn status3";
-
-                }
-
-            
-                HiddenField hd_action = e.Row.FindControl("hd_action") as HiddenField;
-                if (hd_action.Value != "")
-                    e.Row.Cells[7].CssClass = "action_" + hd_action.Value;
-
-
-                HiddenField hd_symbol = e.Row.FindControl("hd_symbol") as HiddenField;
-                Label lb_symbol = e.Row.FindControl("lb_symbol") as Label;
-                if (hd_symbol.Value != "")
-                    lb_symbol.CssClass = " btn disabled symbol_" + hd_symbol.Value;
-
-                
-                //HiddenField hd_proType1 = e.Row.FindControl("hd_proType1") as HiddenField;
-                //Label lb_proType1 = e.Row.FindControl("lb_proType1") as Label;
-                //if (hd_proType1.Value != "")
-                //    lb_proType1.CssClass = " btn disabled symbol_" + hd_proType1.Value;
-
-
-                HiddenField hd_status = e.Row.FindControl("hd_status") as HiddenField;
-                Label lb_status = e.Row.FindControl("lb_status") as Label;
-                switch (hd_status.Value)
-                {
-                    case "0": lb_status.Text = "Acknowledge"; e.Row.Cells[6].CssClass = "status"; break;
-                    case "1": lb_status.Text = "On plan"; e.Row.Cells[6].CssClass = "status"; break;
-                    case "2": lb_status.Text = "Delay"; e.Row.Cells[6].CssClass = "status3"; break;
-                    case "3": lb_status.Text = "Send for check"; e.Row.Cells[6].CssClass = "status"; break;
-                    case "4": lb_status.Text = "Tool Owner[J3] Check"; e.Row.Cells[6].CssClass = "status"; break;
-                    case "5": lb_status.Text = "ENG4[J3] check"; e.Row.Cells[6].CssClass = "status"; break;
-                    case "6": lb_status.Text = "ENG4[Mgr] Approve"; e.Row.Cells[6].CssClass = "status"; break;
-                    case "7": lb_status.Text = "Close"; e.Row.Cells[6].CssClass = "status2"; break;
-                    case "8": lb_status.Text = "Cancel"; e.Row.Cells[6].CssClass = "status2"; break;
-                    case "9": lb_status.Text = "New Problem"; e.Row.Cells[6].CssClass = "status"; break;
-                    default: break;
-                }
-
-                Label lb_shift = e.Row.FindControl("lb_shift") as Label;
-                switch (lb_shift.Text)
-                {
-                    case "1": lb_shift.Text = "Day"; break;
-                    case "2": lb_shift.Text = "Night"; break;
-                    default: break;
-
-                }
+                case "A":
+                case "B":
+                case "C":
+                    lb_priority.CssClass = "prio-badge prio_" + lb_priority.Text; break;
+                default: break;
             }
 
+            // ----- Status (Pill สีเดียวกับ Status Card) -----
+            HiddenField hd_status = e.Row.FindControl("hd_status") as HiddenField;
+            Label lb_status = e.Row.FindControl("lb_status") as Label;
+            if (hd_status.Value != "")
+            {
+                lb_status.Text = StatusName(hd_status.Value);
+                lb_status.CssClass = "pill st-pill st-" + hd_status.Value;
+            }
+
+            // ----- Action (สีพื้น cell จาก Color_History_Status.css) -----
+            HiddenField hd_action = e.Row.FindControl("hd_action") as HiddenField;
+            TableCell actionCell = hd_action.Parent as TableCell;
+            if (hd_action.Value != "" && actionCell != null)
+                actionCell.CssClass += " action_" + hd_action.Value;
+
+            // ----- Tool : ซ่อนส่วนที่ไม่มีข้อมูล -----
+            Label lb_noOfTool = e.Row.FindControl("lb_noOfTool") as Label;
+            Label lb_model = e.Row.FindControl("lb_model") as Label;
+            if (lb_noOfTool.Text == "" && lb_model.Text == "")
+                e.Row.FindControl("div_toolSub").Visible = false;
+
+            // ----- Problem Date + Shift -----
+            Label lb_prob_date = e.Row.FindControl("lb_prob_date") as Label;
+            HiddenField hd_prob_year = e.Row.FindControl("hd_prob_year") as HiddenField;
+            DateTime probDate;
+            if (DateTime.TryParse(lb_prob_date.Text, out probDate))
+            {
+                hd_prob_year.Value = probDate.Year.ToString();
+                lb_prob_date.ToolTip = probDate.ToString("dd-MMM-yyyy HH:mm", System.Globalization.CultureInfo.InvariantCulture);
+                lb_prob_date.Text = probDate.ToString("dd-MMM-yyyy", System.Globalization.CultureInfo.InvariantCulture);
+            }
+
+            Label lb_shift = e.Row.FindControl("lb_shift") as Label;
+            switch (lb_shift.Text)
+            {
+                case "1": lb_shift.Text = "<i class='fa fa-sun-o'></i> Day"; lb_shift.CssClass = "shift-tag day"; break;
+                case "2": lb_shift.Text = "<i class='fa fa-moon-o'></i> Night"; lb_shift.CssClass = "shift-tag night"; break;
+                default: break;
+            }
+
+            // ----- วันที่อื่นๆ ให้อยู่รูปแบบเดียวกัน -----
+            Label lb_follow_up = e.Row.FindControl("lb_follow_up") as Label;
+            Label lb_planFinish = e.Row.FindControl("lb_planFinish") as Label;
+            Label lb_actualFinish = e.Row.FindControl("lb_actualFinish") as Label;
+            lb_follow_up.Text = FormatDate(lb_follow_up.Text, "dd-MMM-yyyy");
+            lb_planFinish.Text = FormatDate(lb_planFinish.Text, "dd-MMM-yyyy");
+            lb_actualFinish.Text = FormatDate(lb_actualFinish.Text, "dd-MMM-yyyy");
+
+            // ----- P2 - P4 -----
+            string[] chipIds = { "lb_proType2", "lb_proType3", "lb_proType4" };
+            foreach (string id in chipIds)
+            {
+                Label lb = e.Row.FindControl(id) as Label;
+                if (lb.Text != "") lb.CssClass = "chip chip-p";
+            }
+
+            // ----- P5 / P6 (Yes / No) -----
+            string[] ynIds = { "lb_proType5", "lb_proType6" };
+            foreach (string id in ynIds)
+            {
+                Label lb = e.Row.FindControl(id) as Label;
+                string v = lb.Text.Trim().ToLower();
+                if (v == "yes") lb.CssClass = "pill yn-yes";
+                else if (v == "no") lb.CssClass = "pill yn-no";
+            }
         }
+
         protected void xls_Click(object sender, EventArgs e)
         {
             string fomart = @"\\cptfile02\Pro\PRJ2016017\10_Tooling Management Control System\00_System\Template\Dashboard_PM_Problem\Dashboard_PM_Problem.xlsm";
@@ -847,12 +898,6 @@ namespace jig_tool
 
         }
 
-        protected void ddl_resp_SelectedIndexChanged(object sender, EventArgs e)
-        {
-            bind_row();
-
-        }
-
         private void Bind_ddlPIC(string eng_group_id)
         {
             string str2 = " select '-Select-' as name ,0 as position_id,0 as eng_group_id,0 as user_dept,'' as emp_id , 0 as order_ " +
@@ -868,204 +913,5 @@ namespace jig_tool
 
         }
 
-        protected void txt_problem_TextChanged(object sender, EventArgs e)
-        {
-            
-            bind_row();
-           
-        }
-
-        protected void ddl_year_SelectedIndexChanged(object sender, EventArgs e)
-        {
-            
-            bind_row();
-           
-        }
-
-        protected void ddl_month_SelectedIndexChanged(object sender, EventArgs e)
-        {
-           
-            bind_row();
-           
-
-        }
-
-        protected void txt_Date_TextChanged(object sender, EventArgs e)
-        {
-           
-            bind_row();
-            //Set_totalRow(0);
-           
-        }
-
-        protected void ddl_shift_SelectedIndexChanged(object sender, EventArgs e)
-        {
-           
-            bind_row();
-            //Set_totalRow(0);
-           
-        }
-
-        protected void ddl_type_SelectedIndexChanged(object sender, EventArgs e)
-        {
-            //Set_totalRow(0);
-              bind_row();
-        }
-
-        protected void ddl_symbol_SelectedIndexChanged(object sender, EventArgs e)
-        {
-           
-            bind_row();
-            //Set_totalRow(0);
-           
-        }
-
-        protected void ddl_priority_SelectedIndexChanged(object sender, EventArgs e)
-        {
-           
-            bind_row();
-            //Set_totalRow(0);
-
-        }
-
-        protected void ddl_status_SelectedIndexChanged(object sender, EventArgs e)
-        {
-           
-            bind_row();
-            //Set_totalRow(0);
-          
-
-        }
-
-        protected void ddl_action_SelectedIndexChanged(object sender, EventArgs e)
-        {
-           
-            bind_row();
-            //Set_totalRow(0);
-          
-        }
-
-        protected void txt_follow_up_TextChanged(object sender, EventArgs e)
-        {
-          
-            bind_row();
-            //Set_totalRow(0);
-        
-        }
-
-        protected void txt_tool_no_TextChanged(object sender, EventArgs e)
-        {
-         
-            bind_row();
-           
-        }
-
-        protected void txt_no_of_tool_TextChanged(object sender, EventArgs e)
-        {
-          
-            bind_row();
-           
-        }
-
-        protected void ddl_model_SelectedIndexChanged(object sender, EventArgs e)
-        {
-          
-            bind_row();
-            //Set_totalRow(0);
-          
-        }
-
-        protected void ddl_resp_name_SelectedIndexChanged(object sender, EventArgs e)
-        {
-          
-            bind_row();
-            //Set_totalRow(0);
-           
-        }
-
-        protected void ddl_tool_owner_SelectedIndexChanged(object sender, EventArgs e)
-        {
-           
-            bind_row();
-            //Set_totalRow(0);
-           
-        }
-
-
-        protected void txt_tss_sub_TextChanged(object sender, EventArgs e)
-        {
-           
-            bind_row();
-            //Set_totalRow(0);
-           
-        }
-
-        protected void txt_tss_main_TextChanged(object sender, EventArgs e)
-        {
-           
-            //Set_totalRow(0);
-            bind_row();
-       
-
-        }
-
-
-        protected void ddl_Pro_type1_SelectedIndexChanged(object sender, EventArgs e)
-        {
-           
-            bind_row();
-         
-        }
-
-        protected void ddl_Pro_type2_SelectedIndexChanged(object sender, EventArgs e)
-        {
-            
-            //Set_totalRow(0);
-            bind_row();
-       
-        }
-
-        protected void ddl_Pro_type3_SelectedIndexChanged(object sender, EventArgs e)
-        {
-           
-            bind_row();
-       
-        }
-
-        protected void ddl_part_equi_SelectedIndexChanged(object sender, EventArgs e)
-        {
-         
-            bind_row();
-            //Set_totalRow(0);
-          
-
-        }
-
-        protected void ddl_touch_SelectedIndexChanged(object sender, EventArgs e)
-        {
-          
-            bind_row();
-            //Set_totalRow(0);
-        
-        }
-
-        protected void ddl_risk_SelectedIndexChanged(object sender, EventArgs e)
-        {
-          
-            bind_row();
-            //Set_totalRow(0);
-           
-        }
-
-        protected void ddl_Issue_SelectedIndexChanged(object sender, EventArgs e)
-        {
-           
-            bind_row();
-            //Set_totalRow(0);
-            Innit_control_page(Convert.ToDouble(ViewState["Total_row"]));
-            Bind_data(0, 20);
-            //li_first.Attributes.Add("class", "disabled");
-            //li_back.Attributes.Add("class", "disabled");
-        }
     }
 }

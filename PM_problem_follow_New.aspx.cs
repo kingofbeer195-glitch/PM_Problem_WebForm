@@ -131,7 +131,7 @@ namespace jig_tool
         {
             string tool_id = GetTool_id(1);
             Session["oldUrl_master"] = null;
-            ToolDetail_link.HRef = "jt_details2.aspx?tool_id=" + tool_id;
+            ToolDetail_link.HRef = "http://cptsvs552.canon-pt.co.th/JigTool/tool-detail/" + tool_id;  // Tool Detail (Blazor JMS)
 
             string toolSub_id = GetTool_id(2);
             PeriodCheck_link.HRef = "jt_his_master.aspx?tool_id=" + tool_id + "&toolSub_id=" + toolSub_id + "";

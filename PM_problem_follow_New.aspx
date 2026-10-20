@@ -478,7 +478,7 @@
         }
 
         .step {
-            --step-c: #B4C0CD;
+            --step-c: #97A7B8;
             position: relative;
             flex: 1 1 0;
             min-width: 0;
@@ -497,7 +497,7 @@
                 right: calc(50% + 22px);
                 height: 4px;
                 border-radius: 2px;
-                background: #E2E8EF;
+                background: #C9D4E0;
                 z-index: 0;
             }
 
@@ -538,7 +538,7 @@
                 font-size: 12px;
                 font-weight: 600;
                 line-height: 1.25;
-                color: #7A8899;
+                color: #66768A;
                 overflow-wrap: anywhere;
             }
 
@@ -1141,13 +1141,13 @@
         :root {
             --c-primary: #0072B5;
             --c-primary-dark: #005A8F;
-            --c-primary-soft: #E7F1FA;
+            --c-primary-soft: #D8E8F6;
             --c-accent: #F5B041;
-            --c-border: #D3DDE8;
-            --c-line: #E7EDF4;
+            --c-border: #BCCADB;
+            --c-line: #D6E0EB;
             --c-text: #1F2D3D;
-            --c-muted: #6B7A8C;
-            --c-bg: #F1F4F8;
+            --c-muted: #55667A;
+            --c-bg: #E2E9F1;
         }
 
         body {
@@ -1362,7 +1362,7 @@
         .grid-container4 {
             grid-template-columns: repeat(3, minmax(0, 1fr));
             gap: 0 12px;
-            background: #F8FAFC;
+            background: #F1F5FA;
         }
 
             .grid-container4 > div {
@@ -1462,7 +1462,7 @@
             .form-control[disabled],
             .form-control.disabled,
             select[disabled] {
-                background-color: #F4F6F9 !important;
+                background-color: #EBF0F6 !important;
                 color: var(--c-text) !important;
                 opacity: 1 !important;
                 cursor: default;
@@ -1582,7 +1582,7 @@
             padding: 6px;
             border: 1px solid var(--c-border);
             border-radius: 10px;
-            background: #F8FAFC;
+            background: #F1F5FA;
         }
 
             .rank-box select.h100 {
@@ -1724,7 +1724,7 @@
             .grid-container12_Problem1 > div:first-child {
                 padding: 6px 8px;
                 border: 0 !important;
-                background: #EDF2F8 !important;
+                background: #DFE8F2 !important;
                 color: var(--c-muted);
                 font-size: 12px;
                 text-align: left !important;
@@ -1754,7 +1754,7 @@
             .grid-container12_Problem1.kv-spec > div:first-child { box-shadow: inset 4px 0 #4CAF50; }
             .grid-container12_Problem1.kv-actual > div:first-child { box-shadow: inset 4px 0 #E67E22; }
             .grid-container12_Problem1.kv-result > div:first-child { box-shadow: inset 4px 0 #0072B5; }
-            .grid-container12_Problem1.kv-detail > div:first-child { box-shadow: inset 4px 0 #B4C0CD; }
+            .grid-container12_Problem1.kv-detail > div:first-child { box-shadow: inset 4px 0 #97A7B8; }
 
         /* Problem Analyze */
         .grid-container13 {
@@ -1842,7 +1842,7 @@
                 }
 
                 .pd-history table[id$="gv_problemDetail"] tr:nth-child(even) td {
-                    background: #F8FAFC !important;
+                    background: #F1F5FA !important;
                 }
 
             .pd-history textarea {
@@ -1972,7 +1972,7 @@
             .pd-wrap select:not(.h100)[disabled] {
                 background-image: none;
                 padding-right: 10px !important;
-                background-color: #F4F6F9 !important;
+                background-color: #EBF0F6 !important;
                 color: var(--c-text) !important;
                 cursor: default;
                 opacity: 1;

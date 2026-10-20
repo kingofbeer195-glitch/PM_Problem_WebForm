@@ -47,17 +47,23 @@ namespace jig_tool
             }
 
             string emp_id = Session["emp_id"].ToString();
-            Assign_Session(emp_id);
 
-            string user_group = Session["user_group"].ToString();
+            // โหลดข้อมูล user จาก cptsvs528 เฉพาะตอนเปิดหน้า (ไม่ใช่ทุก postback / ทุกครั้งที่กด Filter)
+            // และเก็บชื่อที่แสดงไว้ใน Session
+            if (!IsPostBack || Session["display_name"] == null || (string)Session["display_name_emp"] != emp_id)
+            {
+                Assign_Session(emp_id);
 
-            string str = "  select fname + ' ' + SUBSTRING(lname,1,1) + '.' as name,position_id,eng_group_id,user_dept from cptsvs528.user_master.dbo.sys_user_master where emp_id = '" + emp_id + "' ";
-            dc.QryDT(conn, str);
+                string str = "  select fname + ' ' + SUBSTRING(lname,1,1) + '.' as name from cptsvs528.user_master.dbo.sys_user_master where emp_id = '" + emp_id.Replace("'", "''") + "' ";
+                dc.QryDT(conn, str);
+                Session["display_name"] = dc.dt.Rows.Count > 0 ? dc.dt.Rows[0]["name"].ToString() : emp_id;
+                Session["display_name_emp"] = emp_id;
+            }
 
-            string eng_group_id = Session["eng_group_id"].ToString(); // dc.dt.Rows[0]["eng_group_id"].ToString();
-            string position_id = Session["positionId"].ToString(); //dc.dt.Rows[0]["position_id"].ToString();
+            string eng_group_id = Session["eng_group_id"].ToString();
+            string position_id = Session["positionId"].ToString();
 
-            hpl_userName.InnerHtml = dc.dt.Rows[0]["name"].ToString();
+            hpl_userName.InnerHtml = HttpUtility.HtmlEncode(Session["display_name"].ToString());
 
 
             string admin = (emp_id == "016148" || emp_id == "001566" ? "1" : "0");  //check Admin

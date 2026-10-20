@@ -2072,6 +2072,160 @@
                 align-self: center;
             }
     </style>
+    <%-- ===== Modal (Upload Picture / Problem Rank), Picture column, ปุ่ม Save ===== --%>
+    <style>
+        /* ---------- Picture : ไม่ดันความสูงของข้อมูลด้านซ้าย ----------
+           contain:size → คอลัมน์รูปไม่มีผลต่อความสูงของแถว แต่ยืดเต็มความสูงที่มี
+           รูปที่เกินจะ scroll อยู่ในคอลัมน์รูปแทน */
+        .grid-container2 > .col-lg-3 {
+            contain: size;
+            display: flex !important;
+            flex-direction: column;
+            min-height: 300px;
+            overflow: hidden;
+        }
+
+            .grid-container2 > .col-lg-3 > a.btn {
+                flex: 0 0 auto;
+                align-self: flex-start;
+            }
+
+            .grid-container2 > .col-lg-3 > table {
+                display: block;
+                flex: 1 1 auto;
+                min-height: 0;
+                overflow-y: auto;
+                overflow-x: hidden;
+                width: 100% !important;
+                padding-right: 4px;
+            }
+
+                .grid-container2 > .col-lg-3 > table > tbody {
+                    display: block;
+                }
+
+        .grid-container2 > .col-lg-3 > table::-webkit-scrollbar { width: 8px; }
+        .grid-container2 > .col-lg-3 > table::-webkit-scrollbar-track { background: #E7EDF4; border-radius: 4px; }
+        .grid-container2 > .col-lg-3 > table::-webkit-scrollbar-thumb { background: #97A7B8; border-radius: 4px; }
+
+        div[id$="divPicNG"],
+        div[id$="divPicOK"] {
+            max-height: none !important;
+            overflow: visible !important;
+        }
+
+        @media (max-width: 999px) {
+            .grid-container2 > .col-lg-3 {
+                min-height: 360px;
+            }
+        }
+
+        /* ---------- ปุ่ม Save ---------- */
+        .pd-save .btn {
+            display: inline-flex !important;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            line-height: 1 !important;
+        }
+
+            .pd-save .btn .glyphicon {
+                top: 0;
+            }
+
+        /* ---------- Modal : Upload Picture ---------- */
+        .modal-sm4 {
+            width: 460px !important;
+            max-width: calc(100% - 20px);
+            margin-top: 8% !important;
+        }
+
+        .modal-header .modal-title,
+        .modal-header h4 {
+            margin: 0;
+            font-size: 17px;
+            font-weight: 700;
+        }
+
+        .modal-header.theme-bg-color1 .close {
+            color: #fff;
+            opacity: .8;
+            text-shadow: none;
+        }
+
+        .modal input[type="file"].form-control {
+            height: auto !important;
+            padding: 6px 8px;
+            margin: 4px 0 12px;
+            width: 100% !important;
+        }
+
+        .modal .btn.btn2.btn-info {
+            display: inline-flex !important;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            width: 100% !important;
+            height: 38px !important;
+            padding: 0 18px !important;
+            border: 0 !important;
+            border-radius: 6px;
+            background: #0072B5 !important;
+            color: #fff !important;
+            font-size: 15px;
+            font-weight: 600;
+        }
+
+            .modal .btn.btn2.btn-info:hover {
+                background: #005A8F !important;
+            }
+
+            .modal .btn.btn2.btn-info .glyphicon {
+                top: 0;
+            }
+
+        /* ---------- Modal : Update Problem Rank (Old / New) ---------- */
+        .grid-Update_Modal2 {
+            grid-template-rows: none !important;
+            grid-auto-rows: auto;
+            justify-items: center;
+            row-gap: 8px;
+        }
+
+            .grid-Update_Modal2 > a {
+                font-size: 14px !important;
+                color: #55667A;
+                text-transform: uppercase;
+                letter-spacing: .5px;
+                text-decoration: none;
+            }
+
+        .form-control.h100 {
+            width: 110px !important;
+            height: 110px !important;
+            padding: 0 !important;
+            border-radius: 10px !important;
+            font-size: 58px !important;
+            font-weight: 700;
+            line-height: 110px;
+            text-align: center !important;
+            text-align-last: center;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+        }
+
+        div[id$="modal_UpdateProblemRank"] .modal-dialog {
+            min-width: 360px;
+        }
+
+        .modal-footer .btn {
+            height: 32px !important;
+            padding: 0 16px !important;
+            border-radius: 6px;
+            font-weight: 600;
+        }
+    </style>
 </head>
 <body>
     <form id="form1" runat="server">

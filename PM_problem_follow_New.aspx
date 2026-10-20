@@ -462,7 +462,7 @@
     <style>
         .steps-card {
             background: #fff;
-            border: 1px solid #DADFD3;
+            border: 1px solid #D3DDE8;
             border-radius: 10px;
             padding: 14px 10px 10px;
             margin: 10px 0 12px;
@@ -478,7 +478,7 @@
         }
 
         .step {
-            --step-c: #B8C0B0;
+            --step-c: #B4C0CD;
             position: relative;
             flex: 1 1 0;
             min-width: 0;
@@ -497,7 +497,7 @@
                 right: calc(50% + 22px);
                 height: 4px;
                 border-radius: 2px;
-                background: #E3E7DE;
+                background: #E2E8EF;
                 z-index: 0;
             }
 
@@ -538,7 +538,7 @@
                 font-size: 12px;
                 font-weight: 600;
                 line-height: 1.25;
-                color: #8A9383;
+                color: #7A8899;
                 overflow-wrap: anywhere;
             }
 
@@ -556,7 +556,7 @@
                 }
 
             .step.active {
-                --step-c: #2F80ED;
+                --step-c: #0072B5;
             }
 
                 .step.active .btn-process {
@@ -564,7 +564,7 @@
                     height: 46px;
                     margin-top: -3px;
                     font-size: 18px;
-                    box-shadow: 0 0 0 6px rgba(47, 128, 237, .15);
+                    box-shadow: 0 0 0 6px rgba(0, 114, 181, .15);
                 }
 
                     .step.active .btn-process:not(.aspNetDisabled):hover {
@@ -1139,15 +1139,15 @@
          =================================================================== --%>
     <style>
         :root {
-            --c-primary: #5F6F52;
-            --c-primary-dark: #4E5C43;
-            --c-primary-soft: #EEF1E8;
-            --c-accent: #B99470;
-            --c-border: #DADFD3;
-            --c-line: #ECEFE8;
-            --c-text: #2F3A28;
-            --c-muted: #7A8473;
-            --c-bg: #F4F5F1;
+            --c-primary: #0072B5;
+            --c-primary-dark: #005A8F;
+            --c-primary-soft: #E7F1FA;
+            --c-accent: #F5B041;
+            --c-border: #D3DDE8;
+            --c-line: #E7EDF4;
+            --c-text: #1F2D3D;
+            --c-muted: #6B7A8C;
+            --c-bg: #F1F4F8;
         }
 
         body {
@@ -1160,8 +1160,6 @@
         .theme-bg-color1 { background-color: var(--c-primary) !important; }
         .theme-text-color1 { color: var(--c-primary) !important; }
 
-        /* modal header เดิมสีฟ้า → สีเดียวกับระบบ */
-        .modal-header[style*="337ab7"] { background-color: var(--c-primary) !important; }
         .modal-content { border-radius: 8px; overflow: hidden; }
 
         /* ---------- Header + Toolbar (ติดด้านบนตอน scroll) ---------- */
@@ -1364,7 +1362,7 @@
         .grid-container4 {
             grid-template-columns: repeat(3, minmax(0, 1fr));
             gap: 0 12px;
-            background: #FAFBF8;
+            background: #F8FAFC;
         }
 
             .grid-container4 > div {
@@ -1464,7 +1462,7 @@
             .form-control[disabled],
             .form-control.disabled,
             select[disabled] {
-                background-color: #F6F7F3 !important;
+                background-color: #F4F6F9 !important;
                 color: var(--c-text) !important;
                 opacity: 1 !important;
                 cursor: default;
@@ -1584,7 +1582,7 @@
             padding: 6px;
             border: 1px solid var(--c-border);
             border-radius: 10px;
-            background: #FAFBF8;
+            background: #F8FAFC;
         }
 
             .rank-box select.h100 {
@@ -1726,7 +1724,7 @@
             .grid-container12_Problem1 > div:first-child {
                 padding: 6px 8px;
                 border: 0 !important;
-                background: #F1F3EC !important;
+                background: #EDF2F8 !important;
                 color: var(--c-muted);
                 font-size: 12px;
                 text-align: left !important;
@@ -1755,8 +1753,8 @@
             /* แถบสีบอกประเภท */
             .grid-container12_Problem1.kv-spec > div:first-child { box-shadow: inset 4px 0 #4CAF50; }
             .grid-container12_Problem1.kv-actual > div:first-child { box-shadow: inset 4px 0 #E67E22; }
-            .grid-container12_Problem1.kv-result > div:first-child { box-shadow: inset 4px 0 #2F80ED; }
-            .grid-container12_Problem1.kv-detail > div:first-child { box-shadow: inset 4px 0 #B8C0B0; }
+            .grid-container12_Problem1.kv-result > div:first-child { box-shadow: inset 4px 0 #0072B5; }
+            .grid-container12_Problem1.kv-detail > div:first-child { box-shadow: inset 4px 0 #B4C0CD; }
 
         /* Problem Analyze */
         .grid-container13 {
@@ -1844,7 +1842,7 @@
                 }
 
                 .pd-history table[id$="gv_problemDetail"] tr:nth-child(even) td {
-                    background: #FAFBF8 !important;
+                    background: #F8FAFC !important;
                 }
 
             .pd-history textarea {
@@ -1935,6 +1933,144 @@
                 border-right: 0 !important;
             }
         }
+    </style>
+    <%-- ===== Dropdown / ปุ่ม Gear / Excel icon ===== --%>
+    <style>
+        /* ---------- Dropdown ---------- */
+        .pd-wrap select:not(.h100) {
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+            height: 32px !important;
+            padding: 0 30px 0 10px !important;
+            border: 1px solid var(--c-border) !important;
+            border-radius: 6px !important;
+            background-color: #fff;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%230072B5' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 10px center;
+            background-size: 11px 8px;
+            color: var(--c-text);
+            font-size: 13px !important;
+            line-height: 30px;
+            cursor: pointer;
+            box-shadow: none !important;
+            transition: border-color .15s, box-shadow .15s;
+        }
+
+            .pd-wrap select:not(.h100):hover:not([disabled]) {
+                border-color: var(--c-primary) !important;
+            }
+
+            .pd-wrap select:not(.h100):focus {
+                outline: 0;
+                border-color: var(--c-primary) !important;
+                box-shadow: 0 0 0 3px rgba(0, 114, 181, .15) !important;
+            }
+
+            /* อ่านอย่างเดียว : ไม่แสดงลูกศร ดูเป็นช่องข้อมูล */
+            .pd-wrap select:not(.h100)[disabled] {
+                background-image: none;
+                padding-right: 10px !important;
+                background-color: #F4F6F9 !important;
+                color: var(--c-text) !important;
+                cursor: default;
+                opacity: 1;
+            }
+
+            /* Action / Type of Problem (สีพื้น) */
+            .pd-wrap select.ProgStatus1,
+            .pd-wrap select.ProgStatus2 {
+                border: 0 !important;
+                color: #fff !important;
+                font-weight: 600;
+                background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 8'%3E%3Cpath d='M1 1.5l5 5 5-5' fill='none' stroke='%23ffffff' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+            }
+
+            .pd-wrap select.ProgStatus1 { background-color: #17A2B8 !important; }
+            .pd-wrap select.ProgStatus2 { background-color: #E67E22 !important; }
+
+            .pd-wrap select.ProgStatus1[disabled],
+            .pd-wrap select.ProgStatus2[disabled] {
+                color: #fff !important;
+                background-image: none;
+            }
+
+            .pd-wrap select.ProgStatus1[disabled] { background-color: #17A2B8 !important; }
+            .pd-wrap select.ProgStatus2[disabled] { background-color: #E67E22 !important; }
+
+            .pd-wrap select:not(.h100) option {
+                color: #1F2D3D;
+                background: #fff;
+            }
+
+        /* Problem Rank (A/B/C) */
+        .rank-box select.h100 {
+            cursor: default;
+            box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .06);
+        }
+
+            .rank-box select.h100:not([disabled]) {
+                cursor: pointer;
+            }
+
+        /* ---------- Dropdown + Excel icon (Period Check) ---------- */
+        .dd-with-icon {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            width: 100%;
+        }
+
+            .dd-with-icon > select {
+                flex: 1 1 auto;
+                min-width: 0;
+                width: auto !important;
+            }
+
+        .icon-btn {
+            display: inline-flex;
+            flex: 0 0 auto;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+            border: 1px solid var(--c-border);
+            border-radius: 6px;
+            background: #fff;
+        }
+
+            .icon-btn:hover {
+                border-color: #1D6F42;
+                background: #EAF5EE;
+            }
+
+            .icon-btn img {
+                display: block;
+            }
+
+        /* ---------- ปุ่ม Gear : กึ่งกลางแนวตั้งของช่อง Dropdown ---------- */
+        .btn.btn-info {
+            width: 32px !important;
+            height: 32px !important;
+        }
+
+        .gear-cell {
+            align-self: end !important;
+            display: flex;
+            align-items: center;
+            height: 32px;
+            padding: 0 !important;
+        }
+
+        /* แถว Status / Action / Type of Problem */
+        .grid-container4 {
+            align-items: start;
+        }
+
+            .grid-container4 > div > a.btn {
+                align-self: center;
+            }
     </style>
 </head>
 <body>
@@ -2256,22 +2392,24 @@
                                                 <div class="form-inline">
                                                     <label title="กระบวนการที่เกิดปัญหา" class="form-control-static topic-header">Type :</label>
                                                     <br />
-                                                    <asp:DropDownList ID="ddl_type" runat="server" CssClass="form-control"
-                                                        Style="width: 85%;" Enabled="false"
-                                                        AppendDataBoundItems="true"
-                                                        DataSourceID="sql_ddl_type"
-                                                        DataTextField="pm_docName"
-                                                        DataValueField="pm_docID">
-                                                        <asp:ListItem Value="">-selected-</asp:ListItem>
-                                                    </asp:DropDownList>
+                                                    <div class="dd-with-icon">
+                                                        <asp:DropDownList ID="ddl_type" runat="server" CssClass="form-control"
+                                                            Enabled="false"
+                                                            AppendDataBoundItems="true"
+                                                            DataSourceID="sql_ddl_type"
+                                                            DataTextField="pm_docName"
+                                                            DataValueField="pm_docID">
+                                                            <asp:ListItem Value="">-selected-</asp:ListItem>
+                                                        </asp:DropDownList>
+                                                        <asp:LinkButton ID="btn_download_report" runat="server" CssClass="icon-btn" ToolTip="Download Period Check (Excel)" OnClick="btn_download_report_Click">
+                                                            <asp:Image ID="excelReport" runat="server" ImageUrl="~/images/009-xls.png" Width="20px" Height="20px" />
+                                                        </asp:LinkButton>
+                                                    </div>
                                                     <asp:RequiredFieldValidator ID="RequiredFieldValidator1" runat="server" ControlToValidate="ddl_type" ErrorMessage="please select type." Display="Dynamic" ForeColor="Red" ValidationGroup="New_Problem"></asp:RequiredFieldValidator>
 
                                                     <asp:SqlDataSource ID="sql_ddl_type" runat="server"
                                                         ConnectionString="<%$ ConnectionStrings:jig_tool_systemConnectionString  %>"
                                                         SelectCommand="select * from jtPM_master_doc where active = 1 order by pm_docID"></asp:SqlDataSource>
-                                                    <asp:LinkButton ID="btn_download_report" runat="server" OnClick="btn_download_report_Click">
-                                                        <asp:Image ID="excelReport" runat="server" ImageUrl="~/images/009-xls.png" Width="20px" Height="20px" />
-                                                    </asp:LinkButton>
                                                 </div>
 
                                                 <%--@@@ Issue Name--%>
@@ -2313,7 +2451,7 @@
                                             </div>
 
                                             <%--@@@ Button แก้ไข--%>
-                                            <div style="padding-left: 5px; padding-top: 12px; align-self: center;">
+                                            <div class="gear-cell">
                                                 <asp:LinkButton runat="server" ID="btn_Update_Type_Issue" CssClass="btn btn-info" ToolTip="แก้ไข" OnClick="btn_Update_Type_Issue_Click">
                                                     <span class="glyphicon glyphicon-cog"></span>
                                                 </asp:LinkButton>
@@ -2352,7 +2490,6 @@
                                                     </asp:DropDownList>
                                                     <asp:RequiredFieldValidator ID="RequiredFieldValidator10" runat="server" ControlToValidate="ddl_group" ErrorMessage="please select resp name." Display="Dynamic" ForeColor="Red" ValidationGroup="New_Problem"></asp:RequiredFieldValidator>
 
-                                                    &nbsp;&nbsp;
                                                     <asp:Label ID="lb_error_1" runat="server" ForeColor="Red"></asp:Label>
                                                 </div>
                                                 <%--@@@ Tool Owner--%>
@@ -2365,7 +2502,7 @@
                                                 </div>
                                             </div>
                                             <%--@@@ Button แก้ไข--%>
-                                            <div style="padding-left: 5px; padding-top: 12px; align-self: center;">
+                                            <div class="gear-cell">
                                                 <asp:LinkButton runat="server" ID="btn_Update_Resp" CssClass="btn btn-info" ToolTip="แก้ไข" OnClick="btn_Update_Resp_Click"><span class="glyphicon glyphicon-cog"></span></asp:LinkButton>
                                             </div>
                                         </div>
@@ -2418,7 +2555,7 @@
                                                 </div>
                                             </div>
                                             <%--@@@ Button แก้ไข--%>
-                                            <div style="padding-left: 5px; padding-top: 12px; align-self: center;">
+                                            <div class="gear-cell">
                                                 &nbsp;
                                                 <asp:LinkButton runat="server" ID="btn_Update_FollowUp_date" CssClass="btn btn-info" ToolTip="แก้ไข" OnClick="btn_Update_FollowUp_date_Click"><span class="glyphicon glyphicon-cog"></span></asp:LinkButton>
                                             </div>

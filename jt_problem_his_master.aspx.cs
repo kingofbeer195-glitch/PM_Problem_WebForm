@@ -143,11 +143,6 @@ namespace jig_tool
             set { ViewState["currentPage"] = value; }
         }
 
-        private int IsFixFilter()
-        {
-            return Request.QueryString["tool_id"] != null ? 1 : 0;
-        }
-
         /// <summary>ค้นหาใหม่ → กลับไปหน้า 1</summary>
         protected void bind_row()
         {
@@ -155,30 +150,38 @@ namespace jig_tool
             Load_data();
         }
 
-        /// <summary>โหลดข้อมูลหน้าปัจจุบัน + Pager + Record count + Status Card</summary>
+        /// <summary>โหลดข้อมูลหน้าปัจจุบัน + Pager + Record count + Status Card (query ครั้งเดียว)</summary>
         protected void Load_data()
         {
-            int isFixFil = IsFixFilter();
+            int start = ((CurrentPage - 1) * PageSize) + 1;
+            DataSet ds = Query_list(start, CurrentPage * PageSize);
 
-            Set_totalRow(isFixFil);
-            int total = Convert.ToInt32(ViewState["Total_row"]);
+            int total = Convert.ToInt32(ds.Tables[1].Rows[0]["cnt"]);
             int totalPage = (total == 0) ? 1 : (int)Math.Ceiling(total / (double)PageSize);
+
+            // หน้าเกินจำนวนจริง (เช่น ข้อมูลลดลงระหว่างใช้งาน) → ไปหน้าสุดท้าย
+            if (CurrentPage > totalPage)
+            {
+                CurrentPage = totalPage;
+                start = ((CurrentPage - 1) * PageSize) + 1;
+                ds = Query_list(start, CurrentPage * PageSize);
+            }
+
+            ViewState["Total_row"] = total;
             ViewState["Total_Page"] = totalPage;
 
-            if (CurrentPage > totalPage) CurrentPage = totalPage;
-            if (CurrentPage < 1) CurrentPage = 1;
+            gv1.DataSource = ds.Tables[2];
+            gv1.DataBind();
+            if (gv1.HeaderRow != null)
+                gv1.HeaderRow.TableSection = TableRowSection.TableHeader;
 
-            int start = ((CurrentPage - 1) * PageSize) + 1;
-            int end = CurrentPage * PageSize;
-
-            Bind_data(start, end);
             Build_pager(totalPage);
 
             lblRecordCount.Text = (total == 0)
                 ? "ไม่พบข้อมูล"
-                : string.Format("Showing <b>{0:#,0}</b> – <b>{1:#,0}</b> of <b>{2:#,0}</b> entries", start, Math.Min(end, total), total);
+                : string.Format("Showing <b>{0:#,0}</b> – <b>{1:#,0}</b> of <b>{2:#,0}</b> entries", start, Math.Min(CurrentPage * PageSize, total), total);
 
-            Bind_statusCards(isFixFil);
+            Bind_statusCards(ds.Tables[0]);
             Set_advCount();
         }
 
@@ -241,16 +244,11 @@ namespace jig_tool
         //  Status Card : จำนวนตาม Filter ปัจจุบัน (ไม่รวม Filter Status)
         //  กด Card → Filter Status นั้น, กดซ้ำ → ยกเลิก (All)
         // =====================================================================
-        private void Bind_statusCards(int isFixFil)
+        private void Bind_statusCards(DataTable statusCount)
         {
-            string where = (isFixFil == 1 ? Get_where_fix() : Get_where());
-            string str = " select A.isOnplan, count(*) as cnt from PM_Tool_History A where A.PM_problem_id is not null "
-                       + where + Search_fuction(false) + " group by A.isOnplan ";
-            dc.QryDT(conn, str);
-
             Dictionary<string, int> counts = new Dictionary<string, int>();
             int all = 0;
-            foreach (DataRow r in dc.dt.Rows)
+            foreach (DataRow r in statusCount.Rows)
             {
                 string k = r["isOnplan"].ToString();
                 int c = Convert.ToInt32(r["cnt"]);
@@ -330,7 +328,7 @@ namespace jig_tool
         private void Set_advCount()
         {
             int n = 0;
-            DropDownList[] ddls = { ddl_type, ddl_status, ddl_symbol, ddl_action, ddl_shift, ddl_resp_name, ddl_Issue,
+            DropDownList[] ddls = { ddl_type, ddl_status, ddl_action, ddl_shift, ddl_resp_name, ddl_Issue,
                                     ddl_tool_owner, ddl_model, ddl_Pro_type1, ddl_Pro_type2, ddl_Pro_type3,
                                     ddl_part_equi, ddl_touch, ddl_risk };
             foreach (DropDownList d in ddls) if (d.SelectedValue != "") n++;
@@ -345,224 +343,191 @@ namespace jig_tool
             lbl_advCount.Visible = n > 0;
         }
 
-        /// <summary>กัน ' ใน text ที่ผู้ใช้พิมพ์ (SQL ต่อ string)</summary>
-        private static string Q(string s)
+        // =====================================================================
+        //  Query
+        //  - Filter ทั้งหมดส่งเป็น SqlParameter (ไม่ต่อ string จาก input ผู้ใช้)
+        //  - อ่าน View PM_Tool_History "ครั้งเดียว" ลง #base (เฉพาะ column ที่ใช้)
+        //    แล้วนับ Status Card / นับ Total / ดึงหน้าที่แสดง จาก #base
+        //    (เดิมอ่าน View 3 รอบ : Count, Data, Status Card)
+        // =====================================================================
+
+        /// <summary>Column ที่หน้านี้ใช้จริง (Grid + Excel) — ไม่ดึง prob_detail, comment ฯลฯ</summary>
+        private const string ListColumns =
+            " A.PM_problem_id, A.PM_problem_name, A.typeProblem, A.pro_type1, A.priority, A.isOnplan," +
+            " A.action_id, A.action_name, A.PIC, A.rep_group, A.Follow_up, A.plan_finish, A.actual_finish," +
+            " A.tool_id, A.tool_no, A.toolSub_id, A.toolSub_Name, A.model_name, A.check_date, A.shift," +
+            " A.TSS_sub, A.TSS_Main, A.owner_group, A.proType2, A.proType3, A.part, A.touch_status, A.risk_status ";
+
+        private class ListFilter
         {
-            return (s ?? "").Trim().Replace("'", "''");
+            public string BaseSql = "";     // ใช้ตอนอ่าน View → #base (ทุก filter ยกเว้น Status dropdown/Card)
+            public string StatusSql = "";   // ใช้กับ #base (Status dropdown/Card)
+            public List<SqlParameter> Params = new List<SqlParameter>();
+
+            public void Add(string sql, string name, SqlDbType type, object value)
+            {
+                BaseSql += sql;
+                SqlParameter p = new SqlParameter(name, type);
+                p.Value = value;
+                Params.Add(p);
+            }
         }
 
-        protected string Search_fuction()
+        private static string T(TextBox t) { return (t.Text ?? "").Trim(); }
+
+        private static bool TryInt(string s, out int n) { return int.TryParse((s ?? "").Trim(), out n); }
+
+        private static bool TryDate(string s, out DateTime d)
         {
-            return Search_fuction(true);
+            string[] fm = { "dd-MMM-yyyy", "d-MMM-yyyy", "yyyy-MM-dd", "dd/MM/yyyy" };
+            return DateTime.TryParseExact((s ?? "").Trim(), fm, System.Globalization.CultureInfo.InvariantCulture,
+                                          System.Globalization.DateTimeStyles.None, out d);
         }
 
-        protected string Search_fuction(bool includeStatus)
+        private ListFilter Build_filter()
         {
-            string search = "";
+            ListFilter f = new ListFilter();
+            int n, n2;
+            DateTime d1, d2;
 
-            string status = Request.QueryString["status"];
-            string month_id = Request.QueryString["month"];
-            string group = Request.QueryString["group"];
+            // ----- เงื่อนไขคงที่จาก URL -----
+            if (TryInt(Request.QueryString["tool_id"], out n))
+                f.Add(" AND A.tool_id = @qs_tool_id", "@qs_tool_id", SqlDbType.Int, n);
+            if (Request.QueryString["tool_id"] != null && TryInt(Request.QueryString["toolSub_id"], out n))
+                f.Add(" AND A.toolSub_id = @qs_toolSub_id", "@qs_toolSub_id", SqlDbType.Int, n);
+            if (TryInt(Request.QueryString["month"], out n))
+                f.Add(" AND MONTH(A.check_date) = @qs_month", "@qs_month", SqlDbType.Int, n);
+            if (!string.IsNullOrEmpty(Request.QueryString["group"]))
+                f.Add(" AND A.rep_group = @qs_group", "@qs_group", SqlDbType.NVarChar, Request.QueryString["group"]);
+            string qsStatus = Request.QueryString["status"];
+            if (qsStatus == "3")
+                f.BaseSql += " AND A.isOnplan IN (3,4,5,6)";
+            else if (TryInt(qsStatus, out n))
+                f.Add(" AND A.isOnplan = @qs_status", "@qs_status", SqlDbType.Int, n);
 
             // ----- Filter หลัก -----
-            if (txt_problem.Text.Trim() != "")
+            if (T(txt_problem) != "")
+                f.Add(" AND A.PM_problem_name LIKE @prob_no", "@prob_no", SqlDbType.VarChar, "%" + T(txt_problem) + "%");
+            if (T(txt_tool_no) != "")
+                f.Add(" AND A.tool_no LIKE @tool_no", "@tool_no", SqlDbType.NVarChar, "%" + T(txt_tool_no) + "%");
+            if (TryInt(ddl_year.SelectedValue, out n))
             {
-                search += " and A.PM_problem_name Like N'%" + Q(txt_problem.Text) + "%'";
+                // ช่วงวันที่แทน YEAR() → เทียบได้ตรงกับ Problem Date filter
+                f.Add(" AND CONVERT(datetime, A.check_date, 106) >= @year_from", "@year_from", SqlDbType.DateTime, new DateTime(n, 1, 1));
+                f.Add(" AND CONVERT(datetime, A.check_date, 106) < @year_to", "@year_to", SqlDbType.DateTime, new DateTime(n + 1, 1, 1));
             }
-            if (txt_tool_no.Text.Trim() != "")
-            {
-                // Tool : ค้นได้หลาย column (Tool No / No of Tool / Model)
-                string t = Q(txt_tool_no.Text);
-                search += " and (A.tool_no Like N'%" + t + "%' or A.toolSub_Name Like N'%" + t + "%' or A.model_name Like N'%" + t + "%')";
-            }
-            if (ddl_year.SelectedValue != "")
-            {
-                search += " and year(A.check_date) = '" + Q(ddl_year.SelectedValue) + "'  ";
-            }
+            if (TryInt(ddl_symbol.SelectedValue, out n))
+                f.Add(" AND A.pro_type1 = @symbol", "@symbol", SqlDbType.Int, n);
             if (ddl_priority.SelectedValue != "")
-            {
-                search += " and A.priority = '" + Q(ddl_priority.SelectedValue) + "'";
-            }
-            if (group != null)
-            {
-                search += " and A.rep_group = '" + Q(group) + "'";
-            }
+                f.Add(" AND A.priority = @priority", "@priority", SqlDbType.VarChar, ddl_priority.SelectedValue);
             if (ddl_resp.SelectedValue != "")
-            {
-                search += " and A.rep_group = '" + Q(ddl_resp.SelectedItem.Text) + "'";
-            }
+                f.Add(" AND A.rep_group = @rep_group", "@rep_group", SqlDbType.NVarChar, ddl_resp.SelectedItem.Text);
 
             // ----- Filter อื่นๆ -----
-            if (month_id != null)
-            {
-                search += " and MONTH(A.check_date) = '" + Q(month_id) + "' ";
-            }
+            if (TryInt(ddl_type.SelectedValue, out n))
+                f.Add(" AND A.typeProblem = @type", "@type", SqlDbType.Int, n);
+            if (TryInt(ddl_action.SelectedValue, out n))
+                f.Add(" AND A.action_id = @action", "@action", SqlDbType.Int, n);
 
-            string p1 = Q(txt_problem1.Text), p2 = Q(txt_problem2.Text);
-            // From / To ใส่อย่างใดอย่างหนึ่งก็ได้ (To รวมทั้งวัน)
-            if (p1 != "")
-                search += " and CONVERT(datetime, A.check_date,106) >= CONVERT(datetime, '" + p1 + "', 106) ";
-            if (p2 != "")
-                search += " and CONVERT(datetime, A.check_date,106) < DATEADD(day, 1, CONVERT(datetime, '" + p2 + "', 106)) ";
+            if (TryDate(T(txt_problem1), out d1))
+                f.Add(" AND CONVERT(datetime, A.check_date, 106) >= @prob_from", "@prob_from", SqlDbType.DateTime, d1);
+            if (TryDate(T(txt_problem2), out d2))
+                f.Add(" AND CONVERT(datetime, A.check_date, 106) < @prob_to", "@prob_to", SqlDbType.DateTime, d2.AddDays(1));
 
-            string f1 = Q(txt_follow_up.Text), f2 = Q(txt_follow_up2.Text);
-            if (f1 != "" && f2 != "")
-                search += " and A.Follow_up  between  '" + f1 + "' and '" + f2 + "' ";
-            else if (f1 != "" || f2 != "")
-                search += " and A.Follow_up = '" + (f1 != "" ? f1 : f2) + "'";
+            if (TryInt(ddl_shift.SelectedValue, out n))
+                f.Add(" AND A.shift = @shift", "@shift", SqlDbType.Int, n);
 
-            string m1 = Q(txt_tss_main1.Text), m2 = Q(txt_tss_main2.Text);
-            if (m1 != "" && m2 != "")
-                search += " and A.TSS_Main between  '" + m1 + "' and '" + m2 + "' ";
-            else if (m1 != "" || m2 != "")
-                search += " and A.TSS_Main = '" + (m1 != "" ? m1 : m2) + "' ";
+            // Follow Up : เดิมเทียบเป็น string ('01-Nov-2026' < '30-Oct-2026') → ผลผิด → เทียบเป็นวันที่
+            bool hasF1 = TryDate(T(txt_follow_up), out d1), hasF2 = TryDate(T(txt_follow_up2), out d2);
+            if (hasF1 && hasF2)
+            {
+                f.Add(" AND CONVERT(date, A.Follow_up, 106) >= @fu_from", "@fu_from", SqlDbType.Date, d1);
+                f.Add(" AND CONVERT(date, A.Follow_up, 106) <= @fu_to", "@fu_to", SqlDbType.Date, d2);
+            }
+            else if (hasF1 || hasF2)
+                f.Add(" AND CONVERT(date, A.Follow_up, 106) = @fu_on", "@fu_on", SqlDbType.Date, hasF1 ? d1 : d2);
 
-            string s1 = Q(txt_tss_sub1.Text), s2 = Q(txt_tss_sub2.Text);
-            if (s1 != "" && s2 != "")
-                search += " and A.TSS_sub between  '" + s1 + "' and '" + s2 + "' ";
-            else if (s1 != "" || s2 != "")
-                search += " and A.TSS_sub = '" + (s1 != "" ? s1 : s2) + "' ";
+            bool hasM1 = TryInt(T(txt_tss_main1), out n), hasM2 = TryInt(T(txt_tss_main2), out n2);
+            if (hasM1 && hasM2)
+            {
+                f.Add(" AND A.TSS_Main BETWEEN @tssm_from AND @tssm_to", "@tssm_from", SqlDbType.Int, n);
+                f.Params.Add(new SqlParameter("@tssm_to", SqlDbType.Int) { Value = n2 });
+            }
+            else if (hasM1 || hasM2)
+                f.Add(" AND A.TSS_Main = @tssm", "@tssm", SqlDbType.Int, hasM1 ? n : n2);
 
-            if (ddl_shift.SelectedValue != "")
+            bool hasS1 = TryInt(T(txt_tss_sub1), out n), hasS2 = TryInt(T(txt_tss_sub2), out n2);
+            if (hasS1 && hasS2)
             {
-                search += " and A.shift = " + Q(ddl_shift.SelectedValue) + "";
+                f.Add(" AND A.TSS_sub BETWEEN @tsss_from AND @tsss_to", "@tsss_from", SqlDbType.Int, n);
+                f.Params.Add(new SqlParameter("@tsss_to", SqlDbType.Int) { Value = n2 });
             }
-            if (ddl_type.SelectedValue != "")
-            {
-                search += " and A.typeProblem = '" + Q(ddl_type.SelectedValue) + "'";
-            }
-            if (ddl_symbol.SelectedValue != "")
-            {
-                search += " and A.pro_type1 = '" + Q(ddl_symbol.SelectedValue) + "' ";
-            }
+            else if (hasS1 || hasS2)
+                f.Add(" AND A.TSS_sub = @tsss", "@tsss", SqlDbType.Int, hasS1 ? n : n2);
 
-            if (includeStatus)
-            {
-                if (status != null)
-                {
-                    switch (status)
-                    {
-                        case "3":
-                            search += " and A.isOnplan in(3,4,5,6) ";
-                            break;
-                        default:
-                            search += " and A.isOnplan = '" + Q(status) + "'";
-                            break;
-                    }
-                }
-                if (ddl_status.SelectedValue != "")
-                {
-                    search += " and A.isOnplan = " + Q(ddl_status.SelectedValue) + "";
-                }
-            }
-            else if (status != null)
-            {
-                // status จาก URL เป็นเงื่อนไขคงที่ของหน้า → ใช้กับการนับ Status Card ด้วย
-                search += (status == "3") ? " and A.isOnplan in(3,4,5,6) " : " and A.isOnplan = '" + Q(status) + "'";
-            }
-
-            if (ddl_action.SelectedValue != "")
-            {
-                search += " and A.action_id = " + Q(ddl_action.SelectedValue) + "";
-            }
-            if (txt_no_of_tool.Text.Trim() != "")
-            {
-                search += " and A.toolSub_Name Like N'%" + Q(txt_no_of_tool.Text) + "%'";
-            }
-            if (ddl_model.SelectedValue != "")
-            {
-                search += " and A.model_id = " + Q(ddl_model.SelectedValue) + "";
-            }
             if (ddl_resp_name.SelectedValue != "")
-            {
-                search += " and A.emp_id = '" + Q(ddl_resp_name.SelectedValue) + "'";
-            }
-            if (ddl_tool_owner.SelectedValue != "")
-            {
-                search += " and A.owner_group = '" + Q(ddl_tool_owner.SelectedItem.Text) + "'";
-            }
-            if (ddl_Pro_type1.SelectedValue != "")
-            {
-                search += " and A.pro_type1 = '" + Q(ddl_Pro_type1.SelectedValue) + "' ";
-            }
-            if (ddl_Pro_type2.SelectedValue != "")
-            {
-                search += " and A.pro_type2 = '" + Q(ddl_Pro_type2.SelectedValue) + "' ";
-            }
-            if (ddl_Pro_type3.SelectedValue != "")
-            {
-                search += " and A.pro_type3 = '" + Q(ddl_Pro_type3.SelectedValue) + "' ";
-            }
-            if (ddl_part_equi.SelectedValue != "")
-            {
-                search += " and A.part_equi = '" + Q(ddl_part_equi.SelectedValue) + "' ";
-            }
-            if (ddl_touch.SelectedValue != "")
-            {
-                search += " and A.touch_status = '" + Q(ddl_touch.SelectedValue) + "' ";
-            }
-            if (ddl_risk.SelectedValue != "")
-            {
-                search += " and A.risk_status = '" + Q(ddl_risk.SelectedValue) + "' ";
-            }
+                f.Add(" AND A.emp_id = @emp_id", "@emp_id", SqlDbType.VarChar, ddl_resp_name.SelectedValue);
             if (ddl_Issue.SelectedValue != "")
+                f.Add(" AND A.check_by = @check_by", "@check_by", SqlDbType.NVarChar, ddl_Issue.SelectedValue);
+            if (ddl_tool_owner.SelectedValue != "")
+                f.Add(" AND A.owner_group = @owner", "@owner", SqlDbType.NVarChar, ddl_tool_owner.SelectedItem.Text);
+            if (T(txt_no_of_tool) != "")
+                f.Add(" AND A.toolSub_Name LIKE @no_of_tool", "@no_of_tool", SqlDbType.NVarChar, "%" + T(txt_no_of_tool) + "%");
+            if (TryInt(ddl_model.SelectedValue, out n))
+                f.Add(" AND A.model_id = @model", "@model", SqlDbType.Int, n);
+
+            if (TryInt(ddl_Pro_type1.SelectedValue, out n))
+                f.Add(" AND A.pro_type1 = @p1", "@p1", SqlDbType.Int, n);
+            if (TryInt(ddl_Pro_type2.SelectedValue, out n))
+                f.Add(" AND A.pro_type2 = @p2", "@p2", SqlDbType.Int, n);
+            if (TryInt(ddl_Pro_type3.SelectedValue, out n))
+                f.Add(" AND A.pro_type3 = @p3", "@p3", SqlDbType.Int, n);
+            if (TryInt(ddl_part_equi.SelectedValue, out n))
+                f.Add(" AND A.part_equi = @part", "@part", SqlDbType.Int, n);
+            if (ddl_touch.SelectedValue != "")
+                f.Add(" AND A.touch_status = @touch", "@touch", SqlDbType.NVarChar, ddl_touch.SelectedValue);
+            if (ddl_risk.SelectedValue != "")
+                f.Add(" AND A.risk_status = @risk", "@risk", SqlDbType.NVarChar, ddl_risk.SelectedValue);
+
+            // ----- Status (dropdown / Card) : ใช้กับ #base เพื่อให้ Status Card ยังนับทุก Status ได้ -----
+            if (TryInt(ddl_status.SelectedValue, out n))
             {
-                search += " and A.check_by  = '" + Q(ddl_Issue.SelectedValue) + "' ";
+                f.StatusSql = " AND isOnplan = @status";
+                f.Params.Add(new SqlParameter("@status", SqlDbType.Int) { Value = n });
             }
-            return search;
+            return f;
         }
 
-        protected string Get_where()
+        /// <summary>
+        /// Tables[0] = จำนวนต่อ Status (สำหรับ Card), Tables[1] = Total, Tables[2] = แถวของหน้าที่ขอ
+        /// </summary>
+        private DataSet Query_list(int rowStart, int rowEnd)
         {
-            string where = " ";
-            return where;
-        }
+            ListFilter f = Build_filter();
 
-        protected string Get_where_fix()
-        {
-            string tool_id = Request.QueryString["tool_id"];
-            string toolSub_id = Request.QueryString["toolSub_id"];
+            string sql =
+                "SET NOCOUNT ON; " +
+                "SELECT " + ListColumns + " INTO #base FROM PM_Tool_History A WHERE A.PM_problem_id IS NOT NULL " + f.BaseSql + "; " +
+                "SELECT isOnplan, COUNT(*) AS cnt FROM #base GROUP BY isOnplan; " +
+                "SELECT COUNT(*) AS cnt FROM #base WHERE 1 = 1 " + f.StatusSql + "; " +
+                "SELECT * FROM (SELECT ROW_NUMBER() OVER (ORDER BY PM_problem_id DESC) AS MyRowNumber, * FROM #base WHERE 1 = 1 " + f.StatusSql + ") X " +
+                "WHERE MyRowNumber BETWEEN @row_start AND @row_end ORDER BY MyRowNumber; " +
+                "DROP TABLE #base;";
 
-            string where = "";
-            int n;
-            if (int.TryParse(tool_id, out n))
-                where += " and A.tool_id = " + n;
-            if (int.TryParse(toolSub_id, out n))
-                where += " and A.toolSub_id = " + n;
-            return where;
-        }
-
-        protected void Bind_data(int start, int end)
-        {
-            string str = Bind(IsFixFilter());
-            str += "  AND MyRowNumber BETWEEN " + start + " AND " + end;
-            dc.QryDT(conn, str);
-            gv1.DataSource = dc.dt;
-            gv1.DataBind();
-
-            if (gv1.HeaderRow != null)
-                gv1.HeaderRow.TableSection = TableRowSection.TableHeader;
-        }
-
-        protected string Bind(int isFixFil)
-        {
-            string search = Search_fuction();
-            string where = (isFixFil == 1 ? Get_where_fix() : Get_where());
-            string str = "";
-            str += "  SELECT * FROM (select ROW_NUMBER() OVER (ORDER BY PM_problem_id  desc) AS MyRowNumber, *  ";
-            str += "  from PM_Tool_History A where A.PM_problem_id is not null " + where + search + " )  ";
-            str += "  main where PM_problem_id is not null  ";
-            return str;
-        }
-
-        protected void Set_totalRow(int isFixFil)
-        {
-            string search = Search_fuction();
-            string where = (isFixFil == 1 ? Get_where_fix() : Get_where());
-            string str = " select count(*) as cnt from PM_Tool_History A where A.PM_problem_id is not null " + where + search;
-
-            dc.QryDT(conn, str);
-            ViewState["Total_row"] = (dc.dt.Rows.Count > 0) ? Convert.ToInt32(dc.dt.Rows[0]["cnt"]) : 0;
+            DataSet ds = new DataSet();
+            using (SqlConnection cn = new SqlConnection(ConfigurationManager.ConnectionStrings["Sql"].ConnectionString))
+            using (SqlCommand cmd = new SqlCommand(sql, cn))
+            {
+                cmd.CommandTimeout = 120;
+                cmd.Parameters.AddRange(f.Params.ToArray());
+                cmd.Parameters.Add("@row_start", SqlDbType.Int).Value = rowStart;
+                cmd.Parameters.Add("@row_end", SqlDbType.Int).Value = rowEnd;
+                using (SqlDataAdapter da = new SqlDataAdapter(cmd))
+                {
+                    da.Fill(ds);
+                }
+            }
+            return ds;
         }
 
         protected void btn_detail_problem_Click(object sender, EventArgs e)
@@ -731,14 +696,13 @@ namespace jig_tool
             //File.Copy(fomart,new_folder);
 
 
-            gv1.AllowPaging = false;
-            Bind_data(0, Convert.ToInt32(ViewState["Total_row"]));
+            // ดึงทุกแถวตาม Filter ปัจจุบัน (Tables[2])
+            DataTable excel = Query_list(1, int.MaxValue).Tables[2];
 
            
             //if (dc.dt.Rows.Count > 500)
             //    return;
            
-            DataTable excel = dc.dt;
 
             var workbook = new XLWorkbook(fomart);
             var worksheet = workbook.Worksheet("Data");

@@ -722,19 +722,27 @@
                             <label>Problem No</label>
                             <div class="input-icon">
                                 <i class="fa fa-search"></i>
-                                <asp:TextBox ID="txt_problem" runat="server" CssClass="form-control" placeholder="เช่น PB-2026" OnTextChanged="Filter_Changed" AutoPostBack="true"></asp:TextBox>
+                                <asp:TextBox ID="txt_problem" runat="server" CssClass="form-control" placeholder="เช่น PM2-26-0001" OnTextChanged="Filter_Changed" AutoPostBack="true"></asp:TextBox>
                             </div>
                         </div>
-                        <div class="f-item w-lg">
-                            <label>Tool <span class="hint">(Tool No / No of Tool / Model)</span></label>
+                        <div class="f-item w-md">
+                            <label>Tool No</label>
                             <div class="input-icon">
                                 <i class="fa fa-wrench"></i>
-                                <asp:TextBox ID="txt_tool_no" runat="server" CssClass="form-control" placeholder="ค้นหา Tool No, No of Tool, Model" OnTextChanged="Filter_Changed" AutoPostBack="true"></asp:TextBox>
+                                <asp:TextBox ID="txt_tool_no" runat="server" CssClass="form-control" placeholder="ค้นหา Tool No" OnTextChanged="Filter_Changed" AutoPostBack="true"></asp:TextBox>
                             </div>
                         </div>
                         <div class="f-item w-sm">
                             <label>Year</label>
                             <asp:DropDownList ID="ddl_year" runat="server" CssClass="form-control" AppendDataBoundItems="false" OnSelectedIndexChanged="Filter_Changed" AutoPostBack="true">
+                            </asp:DropDownList>
+                        </div>
+                        <div class="f-item w-md">
+                            <label>Symbol</label>
+                            <asp:DropDownList runat="server" ID="ddl_symbol"
+                                DataSourceID="sql_type1" DataTextField="SYM_NAME" DataValueField="symbol_id"
+                                CssClass="form-control" AppendDataBoundItems="true" AutoPostBack="true" OnSelectedIndexChanged="Filter_Changed">
+                                <asp:ListItem Value="">- All -</asp:ListItem>
                             </asp:DropDownList>
                         </div>
                         <div class="f-item w-md">
@@ -753,7 +761,7 @@
                                 AppendDataBoundItems="true" OnSelectedIndexChanged="Filter_Changed" AutoPostBack="true">
                                 <asp:ListItem Value="">- All -</asp:ListItem>
                             </asp:DropDownList>
-                            <asp:SqlDataSource ID="sql_resp" runat="server"
+                            <asp:SqlDataSource EnableCaching="true" CacheDuration="600" ID="sql_resp" runat="server"
                                 ConnectionString="<%$ ConnectionStrings:User_ConnectionString %>"
                                 SelectCommand="select * from user_master.dbo.eng_group_master where active = 1 and dept in(3,5) order by group_name "></asp:SqlDataSource>
                         </div>
@@ -782,7 +790,7 @@
                                     OnSelectedIndexChanged="Filter_Changed" AutoPostBack="true">
                                     <asp:ListItem Value="">- All -</asp:ListItem>
                                 </asp:DropDownList>
-                                <asp:SqlDataSource ID="sql_ddl_type" runat="server"
+                                <asp:SqlDataSource EnableCaching="true" CacheDuration="600" ID="sql_ddl_type" runat="server"
                                     ConnectionString="<%$ ConnectionStrings:jig_tool_systemConnectionString  %>"
                                     SelectCommand="select * from jtPM_master_doc where active = 1 order by pm_docID"></asp:SqlDataSource>
                             </div>
@@ -794,16 +802,8 @@
                                     AutoPostBack="true">
                                     <asp:ListItem Value="">- All -</asp:ListItem>
                                 </asp:DropDownList>
-                                <asp:SqlDataSource ID="sql_promStatus" runat="server" ConnectionString="<%$ ConnectionStrings:jig_tool_systemConnectionString %>"
+                                <asp:SqlDataSource EnableCaching="true" CacheDuration="600" ID="sql_promStatus" runat="server" ConnectionString="<%$ ConnectionStrings:jig_tool_systemConnectionString %>"
                                     SelectCommand="select * from  jtPM_permStatus_master "></asp:SqlDataSource>
-                            </div>
-                            <div class="f-item">
-                                <label>Symbol</label>
-                                <asp:DropDownList runat="server" ID="ddl_symbol"
-                                    DataSourceID="sql_type1" DataTextField="SYM_NAME" DataValueField="symbol_id"
-                                    CssClass="form-control" AppendDataBoundItems="true" AutoPostBack="true" OnSelectedIndexChanged="Filter_Changed">
-                                    <asp:ListItem Value="">- All -</asp:ListItem>
-                                </asp:DropDownList>
                             </div>
                             <div class="f-item">
                                 <label>Action</label>
@@ -813,7 +813,7 @@
                                     AutoPostBack="true">
                                     <asp:ListItem Value="">- All -</asp:ListItem>
                                 </asp:DropDownList>
-                                <asp:SqlDataSource ID="SqlDataSource1" runat="server" ConnectionString="<%$ ConnectionStrings:jig_tool_systemConnectionString %>"
+                                <asp:SqlDataSource EnableCaching="true" CacheDuration="600" ID="SqlDataSource1" runat="server" ConnectionString="<%$ ConnectionStrings:jig_tool_systemConnectionString %>"
                                     SelectCommand="select action_id,action_name from  jtPM_actionStatus_master order by action_id"></asp:SqlDataSource>
                             </div>
                             <div class="f-item span-2">
@@ -861,7 +861,7 @@
                                     AppendDataBoundItems="true" OnSelectedIndexChanged="Filter_Changed" AutoPostBack="true">
                                     <asp:ListItem Value="">- All -</asp:ListItem>
                                 </asp:DropDownList>
-                                <asp:SqlDataSource ID="sql_ddl_resp_name" runat="server"
+                                <asp:SqlDataSource EnableCaching="true" CacheDuration="600" ID="sql_ddl_resp_name" runat="server"
                                     ConnectionString="<%$ ConnectionStrings:User_ConnectionString %>"
                                     SelectCommand=" select 'Pakapol S.' as name ,8 as position_id,5 as eng_group_id,5 as user_dept,'018710' as emp_id , 1 as order_
                                                     union
@@ -884,7 +884,7 @@
                                     AppendDataBoundItems="true" OnSelectedIndexChanged="Filter_Changed" AutoPostBack="true">
                                     <asp:ListItem Value="">- All -</asp:ListItem>
                                 </asp:DropDownList>
-                                <asp:SqlDataSource ID="sql_tool_owner" runat="server"
+                                <asp:SqlDataSource EnableCaching="true" CacheDuration="600" ID="sql_tool_owner" runat="server"
                                     ConnectionString="<%$ ConnectionStrings:User_ConnectionString %>"
                                     SelectCommand="select * from user_master.dbo.eng_group_master where dept in (3,5) and active = 1"></asp:SqlDataSource>
                             </div>
@@ -901,7 +901,7 @@
                                     AppendDataBoundItems="true" OnSelectedIndexChanged="Filter_Changed" AutoPostBack="true">
                                     <asp:ListItem Value="">- All -</asp:ListItem>
                                 </asp:DropDownList>
-                                <asp:SqlDataSource ID="sql_model" runat="server"
+                                <asp:SqlDataSource EnableCaching="true" CacheDuration="600" ID="sql_model" runat="server"
                                     ConnectionString="<%$ ConnectionStrings:jig_tool_systemConnectionString %>"
                                     SelectCommand="select model_id, model_name from draw_master_model order by model_id"></asp:SqlDataSource>
                             </div>
@@ -930,7 +930,7 @@
                                     CssClass="form-control" AppendDataBoundItems="true" AutoPostBack="true" OnSelectedIndexChanged="Filter_Changed">
                                     <asp:ListItem Value="">- All -</asp:ListItem>
                                 </asp:DropDownList>
-                                <asp:SqlDataSource ID="sql_type1" runat="server" ConnectionString="<%$ ConnectionStrings:jig_tool_systemConnectionString %>"
+                                <asp:SqlDataSource EnableCaching="true" CacheDuration="600" ID="sql_type1" runat="server" ConnectionString="<%$ ConnectionStrings:jig_tool_systemConnectionString %>"
                                     SelectCommand="select  id_no as symbol_id ,CONVERT(nvarchar,ROW_NUMBER() OVER(ORDER BY id_no ASC))+'. '+ symbol_name as SYM_NAME ,type from jtPM_symbol_master where type in (1,99) "></asp:SqlDataSource>
                             </div>
                             <div class="f-item">
@@ -940,7 +940,7 @@
                                     CssClass="form-control" AppendDataBoundItems="true" AutoPostBack="true" OnSelectedIndexChanged="Filter_Changed">
                                     <asp:ListItem Value="">- All -</asp:ListItem>
                                 </asp:DropDownList>
-                                <asp:SqlDataSource ID="sql_type2" runat="server" ConnectionString="<%$ ConnectionStrings:jig_tool_systemConnectionString %>"
+                                <asp:SqlDataSource EnableCaching="true" CacheDuration="600" ID="sql_type2" runat="server" ConnectionString="<%$ ConnectionStrings:jig_tool_systemConnectionString %>"
                                     SelectCommand="select  id_no as symbol_id ,CONVERT(nvarchar,ROW_NUMBER() OVER(ORDER BY id_no ASC))+'. '+ symbol_name as SYM_NAME ,type from jtPM_symbol_master where type in (2,99)"></asp:SqlDataSource>
                             </div>
                             <div class="f-item">
@@ -950,7 +950,7 @@
                                     CssClass="form-control" AppendDataBoundItems="true" AutoPostBack="true" OnSelectedIndexChanged="Filter_Changed">
                                     <asp:ListItem Value="">- All -</asp:ListItem>
                                 </asp:DropDownList>
-                                <asp:SqlDataSource ID="sql_type3" runat="server" ConnectionString="<%$ ConnectionStrings:jig_tool_systemConnectionString %>"
+                                <asp:SqlDataSource EnableCaching="true" CacheDuration="600" ID="sql_type3" runat="server" ConnectionString="<%$ ConnectionStrings:jig_tool_systemConnectionString %>"
                                     SelectCommand="select  id_no as symbol_id ,CONVERT(nvarchar,ROW_NUMBER() OVER(ORDER BY id_no ASC))+'. '+ symbol_name as SYM_NAME ,type from jtPM_symbol_master where type in (3,99)"></asp:SqlDataSource>
                             </div>
                             <div class="f-item">
@@ -960,7 +960,7 @@
                                     CssClass="form-control" AppendDataBoundItems="true" AutoPostBack="true" OnSelectedIndexChanged="Filter_Changed">
                                     <asp:ListItem Value="">- All -</asp:ListItem>
                                 </asp:DropDownList>
-                                <asp:SqlDataSource ID="sql_equi" runat="server" ConnectionString="<%$ ConnectionStrings:jig_tool_systemConnectionString %>"
+                                <asp:SqlDataSource EnableCaching="true" CacheDuration="600" ID="sql_equi" runat="server" ConnectionString="<%$ ConnectionStrings:jig_tool_systemConnectionString %>"
                                     SelectCommand="select *, CONVERT(varchar,equi_id)+'. '+equi_name as EQUI from jtPM_equipment_master"></asp:SqlDataSource>
                             </div>
                             <div class="f-item">
@@ -1089,7 +1089,7 @@
                                         <div class="tool-cell">
                                             <asp:Label ID="lb_tool_no" runat="server" CssClass="tool-no" Text='<%#Eval("tool_no") %>'></asp:Label>
                                             <div class="tool-sub" id="div_toolSub" runat="server">
-                                                No. <b><asp:Label ID="lb_noOfTool" runat="server" Text='<%#Eval("toolSub_Name") %>'></asp:Label></b>
+                                                <b><asp:Label ID="lb_noOfTool" runat="server" Text='<%#Eval("toolSub_Name") %>'></asp:Label></b>
                                                 &nbsp;·&nbsp; <asp:Label ID="lb_model" runat="server" Text='<%#Eval("model_name") %>'></asp:Label>
                                             </div>
                                         </div>
